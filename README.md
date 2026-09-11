@@ -19,8 +19,9 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-No `.env` file, no API keys, no database, no sign-up. The demo account arrives pre-funded with
-cash and a populated portfolio so everything is meaningful on first load.
+No API keys, no database, no sign-up required. The demo account arrives pre-funded with cash and a
+populated portfolio so everything is meaningful on first load. (Optionally add a market-data key to
+run on live prices instead of the simulator — see [Configuration](#configuration-api-keys).)
 
 ```bash
 npm run build    # production build
@@ -28,6 +29,41 @@ npm run start    # serve the production build
 npm run lint     # eslint (flat config, next/core-web-vitals + typescript)
 npm run typecheck
 ```
+
+### Running it on your own computer
+
+1. **Install Node.js 20.9 or newer** (LTS is fine) from [nodejs.org](https://nodejs.org), then check
+   with `node -v`.
+2. **Get the code.** With Git:
+
+   ```bash
+   git clone https://github.com/felixbukoye/Monievest.git
+   cd Monievest
+   git checkout arena/01a09298-monievest
+   ```
+
+   Without Git: download the branch as a ZIP —
+   <https://github.com/felixbukoye/Monievest/archive/refs/heads/arena/01a09298-monievest.zip> —
+   unzip it and open that folder in a terminal.
+3. **Install dependencies:** `npm install`
+4. **Create your env file.** It is git-ignored, so your key never leaves your machine.
+
+   ```bash
+   cp .env.example .env.local              # macOS / Linux
+   Copy-Item .env.example .env.local       # Windows PowerShell
+   ```
+
+5. **Open `.env.local` in a plain-text editor** (VS Code, Notepad, or TextEdit in plain-text mode)
+   and fill in two lines:
+
+   ```bash
+   MARKET_DATA_PROVIDER="finnhub"
+   FINNHUB_API_KEY="your_key_here"
+   ```
+
+6. **Run it:** `npm run dev` → <http://localhost:3000>
+
+Leave the key lines blank and Monievest runs entirely on the local simulator — nothing breaks.
 
 ## Stack
 
