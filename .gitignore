@@ -30,12 +30,15 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — secrets never get committed; only the documented template does
+# env files
+# NOTE: .env.local is intentionally TRACKED (owner request). It must only ever
+# contain blank placeholders — a real API key committed here becomes public in
+# git history and has to be rotated + history-rewritten to remove.
 .env
 .env.*
-.env*.local
 !.env.example
 !.env.local.example
+!.env.local
 
 # vercel
 .vercel
