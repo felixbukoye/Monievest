@@ -200,14 +200,49 @@ src/
     └── utils.ts                cn(), seeded PRNG, gaussian, helpers
 ```
 
+## Configuration (API keys)
+
+Monievest runs fully offline on its simulator. To point it at a live provider, drop your key into a
+local env file:
+
+```bash
+cp .env.example .env.local      # .env.local is git-ignored
+# then edit .env.local: paste your key + set MARKET_DATA_PROVIDER
+```
+
+| Variable                    | Purpose                                                                | Default       |
+| --------------------------- | ---------------------------------------------------------------------- | ------------- |
+| `MARKET_DATA_PROVIDER`      | `simulated` \| `finnhub` \| `polygon` \| `alphavantage` \| `twelvedata` | `simulated`   |
+| `FINNHUB_API_KEY`           | Finnhub key                                                             | _empty_       |
+| `POLYGON_API_KEY`           | Polygon.io key                                                          | _empty_       |
+| `ALPHA_VANTAGE_API_KEY`     | Alpha Vantage key                                                       | _empty_       |
+| `TWELVE_DATA_API_KEY`       | Twelve Data key                                                         | _empty_       |
+| `MARKET_DATA_BASE_URL`      | Override the provider base URL (proxies, sandboxes)                     | provider URL  |
+| `MARKET_DATA_CACHE_SECONDS` | Server-side quote cache lifetime (0–3600)                               | `30`          |
+| `NEXT_PUBLIC_APP_URL`       | Absolute origin for metadata / OG URLs                                  | `localhost`   |
+
+**Key handling**
+
+- `.gitignore` blocks `.env`, `.env.*` and `.env*.local`; only the blank **`.env.example`** template
+  is committed. Never paste a real key into `.env.example`.
+- Every secret above is a **server-only** name (no `NEXT_PUBLIC_` prefix), so Next.js never inlines
+  it into the browser bundle. `src/lib/config/env.ts` imports `server-only` to enforce that it is
+  only reachable from route handlers / server components / server actions.
+- `getMarketConfig()` resolves the provider once and **degrades gracefully**: if the provider is
+  named but its key is blank, it returns `live: false`, falls back to the simulator and reports the
+  reason in `warning` instead of rendering empty charts.
+- The dev server reloads automatically when an env file changes — no rebuild needed.
+
 ## Swapping in real market data
 
 The data layer is deliberately narrow. To go live:
 
-1. Implement `buildQuotes()` / `tickQuotes()` / `getHistory()` in `src/lib/market/engine.ts`
-   against a real provider (Finnhub, Polygon, Alpha Vantage, Twelve Data…).
-2. Replace `catalog.ts` with provider reference data, keeping the `Instrument` shape.
-3. Everything else — charts, tables, portfolio maths, order routing — is unchanged.
+1. Read the key with `getMarketConfig()` (`src/lib/config/env.ts`) inside a route handler — never in
+   client code.
+2. Implement `buildQuotes()` / `tickQuotes()` / `getHistory()` in `src/lib/market/engine.ts`
+   against that provider, keeping the `Quote` / `Candle` shapes.
+3. Replace `catalog.ts` with provider reference data, keeping the `Instrument` shape.
+4. Everything else — charts, tables, portfolio maths, order routing — is unchanged.
 
 To persist accounts server-side, replace `PortfolioProvider`'s `localStorage` load/save with API
 calls; the `Action` union and reducer are already transport-agnostic.
