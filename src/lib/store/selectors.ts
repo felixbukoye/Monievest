@@ -3,6 +3,19 @@ import { getHistory } from "@/lib/market/engine";
 import type { Instrument, Quote, Range } from "@/lib/market/types";
 import type { PortfolioState } from "./types";
 
+/** Percentage move over a historical window, ending at the live price. */
+export function periodChangePct(
+  instrument: Instrument,
+  quote: Quote | undefined,
+  range: Range = "1M",
+): number {
+  const candles = getHistory(instrument, range);
+  const first = candles[0]?.c;
+  const price = quote?.price ?? instrument.price;
+  if (!first) return instrument.changePct;
+  return ((price - first) / first) * 100;
+}
+
 export type Holding = {
   instrument: Instrument;
   quote: Quote | undefined;

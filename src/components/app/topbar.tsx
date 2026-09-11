@@ -18,12 +18,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ModeToggle } from "@/components/mode-toggle";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { SidebarContent } from "./sidebar";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
-import { cn } from "@/lib/utils";
-import { SidebarContent } from "./sidebar";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
   const router = useRouter();
@@ -45,11 +43,11 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-sidebar-border bg-background/85 px-3 backdrop-blur-xl sm:px-4">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-2 px-4 sm:px-6">
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
+          className="rounded-xl lg:hidden"
           aria-label="Open navigation"
           onClick={() => setNavOpen(true)}
         >
@@ -59,47 +57,46 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          className={cn(
-            "group flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/70 bg-muted/40 px-3 text-left transition-colors",
-            "hover:border-muted-foreground/35 hover:bg-muted/70 sm:max-w-md",
-          )}
+          className="card-soft group flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-border/70 bg-card px-4 text-left transition-colors hover:border-primary/40 sm:max-w-sm"
         >
           <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="flex-1 truncate text-[13px] text-muted-foreground">Search stocks, ETFs, sectors…</span>
-          <kbd className="hidden rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">
+          <span className="flex-1 truncate text-[13px] text-muted-foreground">
+            Search stocks, ETFs, sectors…
+          </span>
+          <kbd className="hidden rounded-md border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">
             ⌘K
           </kbd>
         </button>
 
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <MarketStatus className="hidden md:flex" />
+        <div className="ml-auto flex items-center gap-2">
+          <MarketStatus className="hidden border-transparent bg-transparent py-0 pr-0 md:flex" showLabel />
 
           <Link
             href="/app/wallet"
-            className="flex h-9 items-center gap-2 rounded-lg border border-border/70 bg-muted/40 px-2.5 transition-colors hover:bg-muted/70"
+            className="card-soft flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 transition-colors hover:border-primary/40"
             title="Available cash"
           >
             <WalletIcon className="size-4 text-muted-foreground" />
-            <span className="tnum text-[13px] font-semibold">
-              {hydrated ? formatMoney(state.cash) : "—"}
-            </span>
+            <span className="tnum text-[13px] font-semibold">{hydrated ? formatMoney(state.cash) : "—"}</span>
           </Link>
 
-          <Button size="sm" variant="default" className="hidden h-9 gap-1.5 sm:flex" onClick={() => onTrade()}>
+          <Button
+            size="sm"
+            className="hidden h-10 gap-1.5 rounded-full px-4 sm:flex"
+            onClick={() => onTrade()}
+          >
             <PlusIcon />
             Trade
           </Button>
-          <Button size="icon" variant="default" className="sm:hidden" aria-label="New trade" onClick={() => onTrade()}>
+          <Button size="icon" className="h-10 w-10 rounded-full sm:hidden" aria-label="New trade" onClick={() => onTrade()}>
             <PlusIcon />
           </Button>
-
-          <ModeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                className="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/40"
                 aria-label="Account menu"
               >
                 <GeneratedAvatar name={state.account.name} seed={state.account.email} className="size-9" />
@@ -148,7 +145,7 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
-        <SheetContent side="left" className="w-[264px] p-0">
+        <SheetContent side="left" className="w-[268px] p-0">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <SidebarContent onNavigate={() => setNavOpen(false)} onTrade={onTrade} />
         </SheetContent>

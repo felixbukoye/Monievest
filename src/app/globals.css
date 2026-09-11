@@ -5,121 +5,130 @@
 
 /* ------------------------------------------------------------------ *
  * Monievest design tokens
- * Dark-first fintech: deep navy surfaces, violet brand, emerald gains.
+ * Soft, rounded, violet-accented fintech (per product reference):
+ * light-grey canvas, white cards with generous radii, pink statistics
+ * area chart, emerald gains / rose losses. Full dark theme included.
  * ------------------------------------------------------------------ */
 
 :root {
-  --radius: 0.875rem;
+  --radius: 1.25rem;
 
-  --background: #f6f8fc;
-  --foreground: #0b1220;
+  --background: #f2f2f5;
+  --foreground: #131316;
 
   --card: #ffffff;
-  --card-foreground: #0b1220;
+  --card-foreground: #131316;
 
   --popover: #ffffff;
-  --popover-foreground: #0b1220;
+  --popover-foreground: #131316;
 
-  --primary: #5b46e8;
+  --primary: #8b5cf6;
   --primary-foreground: #ffffff;
 
-  --secondary: #eef2f9;
-  --secondary-foreground: #1c2740;
+  --secondary: #f1f1f4;
+  --secondary-foreground: #3f3f46;
 
-  --muted: #f0f3f9;
-  --muted-foreground: #5d6c86;
+  --muted: #f4f4f6;
+  --muted-foreground: #71717a;
 
-  --accent: #eceffd;
-  --accent-foreground: #3c2fb0;
+  --accent: #f3eeff;
+  --accent-foreground: #6d28d9;
 
-  --destructive: #e11d48;
+  --destructive: #f43f5e;
   --destructive-foreground: #ffffff;
 
-  --success: #0f9d58;
+  --success: #10b981;
   --success-foreground: #ffffff;
 
-  --warning: #b45309;
+  --warning: #f59e0b;
   --warning-foreground: #ffffff;
 
-  --border: #e1e7f1;
-  --input: #dbe2ee;
-  --ring: #5b46e8;
+  --border: #e9e9ee;
+  --input: #e3e3e9;
+  --ring: #8b5cf6;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0b1220;
-  --sidebar-accent: #f2f4fb;
-  --sidebar-border: #e6ebf4;
+  --sidebar: #fbfbfd;
+  --sidebar-foreground: #131316;
+  --sidebar-accent: #ededf1;
+  --sidebar-border: #ececf1;
 
   /* semantic market colours */
-  --gain: #0f9d58;
-  --gain-soft: #0f9d581a;
-  --loss: #e11d48;
-  --loss-soft: #e11d481a;
+  --gain: #10b981;
+  --gain-soft: #10b98114;
+  --loss: #f43f5e;
+  --loss-soft: #f43f5e14;
 
   /* chart ramp */
-  --chart-1: #5b46e8;
+  --chart-1: #8b5cf6;
   --chart-2: #0ea5e9;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
   --chart-5: #ec4899;
+  /* soft rose used by the "Statistics" area chart, per reference */
+  --chart-stat: #fb7185;
+  --chart-stat-soft: #fda4af;
 
-  --grid-line: #0b12200d;
-  --shadow-glow: 0 18px 50px -22px #5b46e866;
+  --grid-line: #13131609;
+  --shadow-card: 0 1px 2px rgb(19 19 22 / 0.04), 0 10px 30px -18px rgb(19 19 22 / 0.14);
+  --shadow-glow: 0 14px 40px -18px #8b5cf666;
 }
 
 .dark {
-  --background: #06090f;
-  --foreground: #e6edf9;
+  --background: #0c0c0f;
+  --foreground: #f4f4f5;
 
-  --card: #0b111c;
-  --card-foreground: #e6edf9;
+  --card: #16161b;
+  --card-foreground: #f4f4f5;
 
-  --popover: #0d1421;
-  --popover-foreground: #e6edf9;
+  --popover: #1b1b21;
+  --popover-foreground: #f4f4f5;
 
-  --primary: #7c6cf6;
-  --primary-foreground: #08060f;
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
 
-  --secondary: #131b2b;
-  --secondary-foreground: #c7d3e6;
+  --secondary: #202027;
+  --secondary-foreground: #d4d4d8;
 
-  --muted: #111827;
-  --muted-foreground: #8494ad;
+  --muted: #1c1c22;
+  --muted-foreground: #9d9da8;
 
-  --accent: #182034;
-  --accent-foreground: #dfe7f6;
+  --accent: #251b3d;
+  --accent-foreground: #c4b5fd;
 
-  --destructive: #fb5c78;
-  --destructive-foreground: #160308;
+  --destructive: #fb7185;
+  --destructive-foreground: #1a0409;
 
-  --success: #2ee59b;
+  --success: #34d399;
   --success-foreground: #03150e;
 
   --warning: #fbbf24;
   --warning-foreground: #1a1204;
 
-  --border: #1b2536;
-  --input: #232f45;
-  --ring: #7c6cf6;
+  --border: #26262e;
+  --input: #2e2e37;
+  --ring: #a78bfa;
 
-  --sidebar: #080c15;
-  --sidebar-foreground: #e6edf9;
-  --sidebar-accent: #131c2c;
-  --sidebar-border: #141d2c;
+  --sidebar: #101014;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-accent: #1e1e25;
+  --sidebar-border: #1e1e25;
 
-  --gain: #2ee59b;
-  --gain-soft: #2ee59b1f;
-  --loss: #fb5c78;
-  --loss-soft: #fb5c781f;
+  --gain: #34d399;
+  --gain-soft: #34d3991f;
+  --loss: #fb7185;
+  --loss-soft: #fb71851f;
 
-  --chart-1: #7c6cf6;
+  --chart-1: #a78bfa;
   --chart-2: #38bdf8;
-  --chart-3: #2ee59b;
+  --chart-3: #34d399;
   --chart-4: #fbbf24;
   --chart-5: #f472b6;
+  --chart-stat: #fb7185;
+  --chart-stat-soft: #f472b6;
 
-  --grid-line: #ffffff0f;
-  --shadow-glow: 0 22px 60px -26px #7c6cf6aa;
+  --grid-line: #ffffff0d;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 14px 40px -22px rgb(0 0 0 / 0.7);
+  --shadow-glow: 0 18px 50px -22px #8b5cf6aa;
 }
 
 @theme inline {
@@ -161,11 +170,13 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-stat: var(--chart-stat);
+  --color-chart-stat-soft: var(--chart-stat-soft);
 
-  --radius-sm: calc(var(--radius) - 6px);
-  --radius-md: calc(var(--radius) - 3px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 5px);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: var(--radius);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
@@ -191,7 +202,7 @@
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--primary) 35%, transparent);
+    background: color-mix(in oklab, var(--primary) 30%, transparent);
     color: var(--foreground);
   }
 
@@ -202,17 +213,17 @@
   }
 
   :focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent);
+    outline: 2px solid color-mix(in oklab, var(--ring) 65%, transparent);
     outline-offset: 2px;
   }
 }
 
 /* ------------------------------------------------------------------ *
- * Scrollbars
+ * Scrollbars — hidden for the horizontal stock rail, thin elsewhere
  * ------------------------------------------------------------------ */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
 }
 *::-webkit-scrollbar {
   width: 9px;
@@ -222,14 +233,22 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--muted-foreground) 32%, transparent);
+  background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
   background-clip: content-box;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* ------------------------------------------------------------------ *
@@ -250,8 +269,13 @@
 
 @utility glow-ring {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--primary) 26%, transparent),
     var(--shadow-glow);
+}
+
+/* The reference's cards are white with a hairline border + very soft lift. */
+@utility card-soft {
+  box-shadow: var(--shadow-card);
 }
 
 /* ------------------------------------------------------------------ *
@@ -336,20 +360,6 @@
   }
 }
 
-/* ------------------------------------------------------------------ *
- * Table density preference (Settings → Compact tables)
- * ------------------------------------------------------------------ */
-[data-density="compact"] [data-slot="table-cell"] {
-  padding-top: 0.4rem;
-  padding-bottom: 0.4rem;
-}
-[data-density="compact"] [data-slot="table-head"] {
-  height: 2rem;
-}
-[data-density="compact"] [data-slot="table-row"] [data-slot="table-cell"] {
-  font-size: 12.5px;
-}
-
 /* Recharts theming */
 .recharts-cartesian-axis-tick text {
   fill: var(--muted-foreground);
@@ -358,7 +368,7 @@
 }
 .recharts-cartesian-grid line {
   stroke: var(--border);
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.7;
 }
 .recharts-surface {
   overflow: visible;

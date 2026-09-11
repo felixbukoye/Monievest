@@ -15,7 +15,7 @@ import { PortfolioProvider } from "@/lib/store/provider";
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <TooltipProvider delayDuration={120}>
         <PortfolioProvider>
           <MarketProvider>

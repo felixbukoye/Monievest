@@ -577,9 +577,9 @@ function ThemePreviewCard({ mode, className }: { mode: "dark" | "light"; classNa
     <div
       className={cn("rounded-2xl border p-4 shadow-xl", className)}
       style={{
-        background: dark ? "#0b111c" : "#ffffff",
-        borderColor: dark ? "#1b2536" : "#e1e7f1",
-        color: dark ? "#e6edf9" : "#0b1220",
+        background: dark ? "#16161b" : "#ffffff",
+        borderColor: dark ? "#26262e" : "#e9e9ee",
+        color: dark ? "#f4f4f5" : "#18181b",
       }}
     >
       <div className="flex items-center justify-between">
@@ -590,15 +590,15 @@ function ThemePreviewCard({ mode, className }: { mode: "dark" | "light"; classNa
         {dark ? <MoonIcon className="size-4" /> : <SunIcon className="size-4" />}
       </div>
 
-      <p className="mt-4 text-[10.5px] font-semibold tracking-wider uppercase" style={{ color: dark ? "#8494ad" : "#5d6c86" }}>
+      <p className="mt-4 text-[10.5px] font-semibold tracking-wider uppercase" style={{ color: dark ? "#a1a1aa" : "#71717a" }}>
         Total value
       </p>
       <p className="tnum text-xl font-semibold tracking-tight">$91,133.54</p>
       <span
         className="tnum mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
         style={{
-          color: dark ? "#2ee59b" : "#0f9d58",
-          background: dark ? "#2ee59b1f" : "#0f9d581a",
+          color: dark ? "#34d399" : "#10b981",
+          background: dark ? "#34d3991f" : "#10b98114",
         }}
       >
         +2.14% today
@@ -608,15 +608,15 @@ function ThemePreviewCard({ mode, className }: { mode: "dark" | "light"; classNa
         className="mt-4 h-16 w-full rounded-lg"
         style={{
           background: dark
-            ? "linear-gradient(180deg, rgba(124,108,246,0.35), rgba(124,108,246,0))"
-            : "linear-gradient(180deg, rgba(91,70,232,0.22), rgba(91,70,232,0))",
+            ? "linear-gradient(180deg, rgba(251,113,133,0.38), rgba(251,113,133,0))"
+            : "linear-gradient(180deg, rgba(251,113,133,0.26), rgba(251,113,133,0))",
         }}
       >
         <svg viewBox="0 0 200 60" className="h-full w-full" preserveAspectRatio="none">
           <path
             d="M0,46 C22,40 34,50 52,42 C70,34 82,44 100,32 C118,20 130,28 148,18 C166,8 180,14 200,6"
             fill="none"
-            stroke={dark ? "#7c6cf6" : "#5b46e8"}
+            stroke={dark ? "#fb7185" : "#f43f5e"}
             strokeWidth="2"
             strokeLinecap="round"
           />
@@ -631,10 +631,10 @@ function ThemePreviewCard({ mode, className }: { mode: "dark" | "light"; classNa
           <div
             key={row.s}
             className="flex items-center justify-between rounded-lg px-2 py-1.5 text-[12px]"
-            style={{ background: dark ? "#131b2b" : "#f0f3f9" }}
+            style={{ background: dark ? "#1e1e24" : "#f5f5f7" }}
           >
             <span className="font-mono font-semibold">{row.s}</span>
-            <span className="tnum font-semibold" style={{ color: row.up ? (dark ? "#2ee59b" : "#0f9d58") : dark ? "#fb5c78" : "#e11d48" }}>
+            <span className="tnum font-semibold" style={{ color: row.up ? (dark ? "#34d399" : "#10b981") : dark ? "#fb7185" : "#f43f5e" }}>
               {row.v}
             </span>
           </div>

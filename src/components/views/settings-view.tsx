@@ -137,20 +137,20 @@ export function SettingsView() {
                   <span className="mt-1 flex h-6 w-full overflow-hidden rounded-md border">
                     {option.id === "light" && (
                       <>
-                        <span className="flex-1 bg-[#f6f8fc]" />
-                        <span className="w-1/3 bg-[#5b46e8]" />
+                        <span className="flex-1 bg-[#f2f2f5]" />
+                        <span className="w-1/3 bg-[#8b5cf6]" />
                       </>
                     )}
                     {option.id === "dark" && (
                       <>
-                        <span className="flex-1 bg-[#0b111c]" />
-                        <span className="w-1/3 bg-[#7c6cf6]" />
+                        <span className="flex-1 bg-[#0c0c0f]" />
+                        <span className="w-1/3 bg-[#a78bfa]" />
                       </>
                     )}
                     {option.id === "system" && (
                       <>
-                        <span className="flex-1 bg-[#f6f8fc]" />
-                        <span className="flex-1 bg-[#0b111c]" />
+                        <span className="flex-1 bg-[#f2f2f5]" />
+                        <span className="flex-1 bg-[#0c0c0f]" />
                       </>
                     )}
                   </span>

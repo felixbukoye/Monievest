@@ -3,8 +3,8 @@
 **Invest in stocks. Build real wealth.**
 
 Monievest is a modern investment web app: buy and sell stocks and ETFs, build a diversified
-portfolio, track performance against the market, and manage your cash — all in a dark-first
-fintech interface with a complete light theme.
+portfolio, track performance against the market, and manage your cash — all in a soft, rounded
+light interface (light-grey canvas, white cards, violet accent) with a complete dark theme.
 
 > ⚠️ **Demo product.** Every price, quote, fill, dividend, headline and balance is **simulated
 > locally in your browser**. There is no broker, no exchange connection and no real money.
@@ -45,6 +45,19 @@ npm run typecheck
 
 ## Features
 
+**Dashboard**
+
+- Horizontally scrolling stock rail: circular brand tiles, live price and the move **vs last month**
+- **Portfolio Values** card — total value, return chip, a plain-English profit sentence, a
+  Today / Invested / Cash strip, and **Worst / Top Performance** pills that re-scope the chart,
+  plus a data-driven tip banner
+- **Statistics** card — rose area chart over the last month (compact `k` axis, dashed marker and a
+  value pill on the latest point). It plots the whole portfolio, or the strongest / weakest holding
+- **My Stock** table — sortable by name, invest date, volume, change and price, with sparklines and
+  inline buy / sell actions
+- Portfolio performance vs the S&P 500, sector allocation donut, live market movers, resting
+  orders, watchlist, index snapshot and recent activity
+
 **Trading**
 
 - Market orders (instant fill) and limit orders that rest on the book and **auto-fill** the moment
@@ -69,7 +82,8 @@ npm run typecheck
 - 44 instruments (large-cap stocks + index/thematic ETFs) across 12 sectors
 - Filter by search, sector and type; sort by symbol, price, change, market cap, volume or yield
   (clickable headers + select)
-- Gainers / losers / most-active boards, index snapshot, scrolling ticker tape
+- Gainers / losers / most-active boards, index snapshot (the scrolling ticker tape runs on the
+  landing page)
 - Stock detail page: 1D–5Y charts (area or line, optional volume), day and 52-week range bars,
   full statistics, simulated news, peer comparison and your position history
 
@@ -85,10 +99,12 @@ npm run typecheck
 
 **Theming**
 
-- Dark-first fintech palette (deep navy surfaces, violet brand, emerald gains / rose losses)
-- A complete light theme, not an inversion: every surface, chart, table, toast and tooltip is
-  driven by CSS custom properties
-- Light / dark / system, applied before first paint
+- Light-first palette: `#f2f2f5` canvas, white cards with hairline borders and a soft shadow,
+  20 px radii, violet `#8b5cf6` brand, emerald gains / rose losses, rose statistics chart
+- A complete dark theme, not an inversion: every surface, chart, table, toast and tooltip is
+  driven by CSS custom properties in `src/app/globals.css`
+- Light / dark / auto via the segmented control in the sidebar footer (a compact toggle sits on the
+  landing page), applied before first paint with no flash
 
 ## How the simulated market works
 
@@ -164,7 +180,8 @@ src/
 │       ├── settings/page.tsx   /app/settings   Settings
 │       └── stock/[symbol]/     /app/stock/AAPL Stock detail (dynamic metadata)
 ├── components/
-│   ├── app/                    Shell: sidebar, topbar, ticker tape, search palette, nav
+│   ├── app/                    Shell: sidebar (nav + theme control), topbar, search palette
+│   ├── dashboard/              Stock rail, Portfolio Values + Statistics cards, My Stock table
 │   ├── charts/                 Price/performance/allocation charts + range selector
 │   ├── market/                 MarketProvider (quote board + limit auto-fill)
 │   ├── portfolio/              Holdings table
@@ -173,7 +190,7 @@ src/
 │   ├── ui/                     shadcn/ui-style primitives
 │   ├── views/                  One client view per route
 │   ├── brand.tsx               Logo + wordmark
-│   ├── mode-toggle.tsx         Light / dark / system
+│   ├── mode-toggle.tsx         Light / dark / system (landing page)
 │   └── providers.tsx           Provider composition
 └── lib/
     ├── hooks/use-mounted.ts

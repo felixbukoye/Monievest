@@ -7,7 +7,7 @@ export function LogoMark({ className }: { className?: string }) {
     <span
       className={cn(
         "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-[10px]",
-        "bg-[linear-gradient(140deg,var(--color-primary),var(--color-gain))]",
+        "bg-[linear-gradient(140deg,#a78bfa,#7c3aed)]",
         "shadow-[0_6px_18px_-8px_var(--color-primary)]",
         className,
       )}

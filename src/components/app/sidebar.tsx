@@ -2,25 +2,69 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlusIcon, SparklesIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
+import { useTheme } from "next-themes";
 import * as React from "react";
 
 import { Wordmark } from "@/components/brand";
 import { useMarket } from "@/components/market/market-provider";
-import { ChangeChip } from "@/components/shared/prices";
-import { SimulatedBadge } from "@/components/shared/states";
+import { GeneratedAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMounted } from "@/lib/hooks/use-mounted";
 import { formatMoney } from "@/lib/format";
-import { summarise } from "@/lib/store/selectors";
 import { usePortfolio } from "@/lib/store/provider";
-import { NAV_ITEMS } from "./nav";
+import { summarise } from "@/lib/store/selectors";
+import { APP_GROUPS } from "./nav";
 import { cn } from "@/lib/utils";
 
 function isActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const THEME_CHOICES = [
+  { id: "light", label: "Light", icon: SunIcon },
+  { id: "dark", label: "Dark", icon: MoonIcon },
+  { id: "system", label: "Auto", icon: MonitorIcon },
+] as const;
+
+/** Light / Dark / Auto segmented control, pinned to the sidebar footer. */
+export function ThemeSegmented({ className }: { className?: string }) {
+  const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Colour theme"
+      className={cn("grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-secondary/70 p-1", className)}
+    >
+      {THEME_CHOICES.map((choice) => {
+        const active = mounted && theme === choice.id;
+        return (
+          <button
+            key={choice.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => setTheme(choice.id)}
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] font-medium transition-all outline-none",
+              "focus-visible:ring-2 focus-visible:ring-ring/50",
+              active
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <choice.icon className="size-3.5" />
+            {choice.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function SidebarContent({
@@ -37,14 +81,14 @@ export function SidebarContent({
   const pending = state.orders.filter((order) => order.status === "pending").length;
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto p-3">
-      <div className="px-2 pt-1 pb-3">
-        <Wordmark showTagline />
+    <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
+      <div className="flex items-center justify-between gap-2 px-1 pt-1">
+        <Wordmark />
       </div>
 
       <Button
-        variant="glow"
-        className="mb-2 h-10 w-full justify-start gap-2 rounded-xl"
+        variant="default"
+        className="h-10 w-full justify-center gap-2 rounded-full shadow-sm"
         onClick={() => {
           onTrade?.();
           onNavigate?.();
@@ -54,76 +98,93 @@ export function SidebarContent({
         New trade
       </Button>
 
-      <nav className="flex flex-col gap-0.5" aria-label="Main">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(pathname, item.href, item.exact);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-colors outline-none",
-                "focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                active
-                  ? "bg-sidebar-accent text-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-              )}
-            >
-              {active && (
-                <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
-              )}
-              <item.icon className={cn("size-[18px] shrink-0", active ? "text-primary" : "")} strokeWidth={2} />
-              <span className="flex-1">{item.label}</span>
-              {item.href === "/app/activity" && pending > 0 && hydrated && (
-                <span className="tnum rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  {pending}
-                </span>
-              )}
-              {item.href === "/app/watchlist" && state.watchlist.length > 0 && (
-                <span className="tnum text-[11px] text-muted-foreground">{state.watchlist.length}</span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+      {APP_GROUPS.map((group) => (
+        <nav key={group.label} className="flex flex-col gap-1" aria-label={group.label}>
+          <p className="px-3 pb-1 text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
+            {group.label}
+          </p>
+          {group.items.map((item) => {
+            const active = isActive(pathname, item.href, item.exact);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-colors outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-ring/40",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                )}
+              >
+                <item.icon
+                  className={cn("size-[18px] shrink-0", active ? "text-primary" : "text-muted-foreground")}
+                  strokeWidth={2}
+                />
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/app/activity" && pending > 0 && hydrated && (
+                  <span className="tnum rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {pending}
+                  </span>
+                )}
+                {item.href === "/app/watchlist" && state.watchlist.length > 0 && (
+                  <span className="tnum text-[11px] text-muted-foreground">{state.watchlist.length}</span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+      ))}
 
-      <div className="mt-auto space-y-3 pt-4">
+      <div className="mt-auto space-y-3 pt-2">
         <Separator />
 
-        <div className="rounded-xl border border-border/70 bg-gradient-to-b from-primary/8 to-transparent p-3.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-              Total value
-            </span>
-            <SparklesIcon className="size-3.5 text-primary" />
+        <Link
+          href="/app/portfolio"
+          onClick={onNavigate}
+          className="card-soft flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
+        >
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
+              Portfolio value
+            </p>
+            {hydrated ? (
+              <p className="tnum mt-0.5 text-[17px] font-semibold tracking-tight">
+                {formatMoney(summary.totalValue)}
+              </p>
+            ) : (
+              <Skeleton className="mt-1 h-5 w-24" />
+            )}
           </div>
           {hydrated ? (
-            <p className="tnum mt-1 text-xl font-semibold tracking-tight">{formatMoney(summary.totalValue)}</p>
+            <span
+              className={cn(
+                "tnum rounded-full px-2 py-1 text-[11px] font-semibold",
+                summary.dayChange >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
+              )}
+            >
+              {summary.dayChange >= 0 ? "↑" : "↓"} {Math.abs(summary.dayChangePct).toFixed(2)}%
+            </span>
           ) : (
-            <Skeleton className="mt-1.5 h-6 w-28" />
+            <Skeleton className="h-6 w-14 rounded-full" />
           )}
-          <div className="mt-1.5 flex items-center gap-2">
-            {hydrated ? (
-              <ChangeChip value={summary.dayChange} pct={summary.dayChangePct} size="sm" />
-            ) : (
-              <Skeleton className="h-5 w-20 rounded-md" />
-            )}
-            <span className="text-[11px] text-muted-foreground">today</span>
-          </div>
-        </div>
+        </Link>
 
-        <div className="flex items-center justify-between gap-2 px-1">
-          <SimulatedBadge />
-          <Link
-            href="/app/settings"
-            onClick={onNavigate}
-            className="text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Preferences
-          </Link>
-        </div>
+        <ThemeSegmented />
+
+        <Link
+          href="/app/settings"
+          onClick={onNavigate}
+          className="flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-sidebar-accent/60"
+        >
+          <GeneratedAvatar name={state.account.name} seed={state.account.email} className="size-8" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px] font-semibold">{state.account.name}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{state.account.tier}</span>
+          </span>
+        </Link>
       </div>
     </div>
   );
@@ -131,7 +192,7 @@ export function SidebarContent({
 
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
+    <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
       <SidebarContent />
     </aside>
   );

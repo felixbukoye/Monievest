@@ -8,12 +8,8 @@ import {
   BanknoteIcon,
   ClockIcon,
   FlameIcon,
-  LineChartIcon,
   PlusIcon,
   StarIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
-  WalletIcon,
   XIcon,
 } from "lucide-react";
 import * as React from "react";
@@ -21,8 +17,15 @@ import * as React from "react";
 import { useTrade } from "@/components/app/app-shell";
 import { useMarket } from "@/components/market/market-provider";
 import { AllocationChart } from "@/components/charts/allocation-chart";
+import { StockRail } from "@/components/dashboard/stock-rail";
+import {
+  PortfolioValuesCard,
+  StatisticsCard,
+  type StatPoint,
+  type StatsScope,
+} from "@/components/dashboard/summary-cards";
+import { MyStockTable, buildMyStockRows } from "@/components/dashboard/my-stock-table";
 import { PerformanceChart, RangeSelector } from "@/components/charts/price-chart";
-import { HoldingsTable } from "@/components/portfolio/holdings-table";
 import { ChangeChip, LivePrice } from "@/components/shared/prices";
 import { Sparkline } from "@/components/shared/sparkline";
 import { StockAvatar } from "@/components/shared/stock-avatar";
@@ -39,6 +42,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatCompactMoney, formatMoney, formatPercent, formatShares, relativeTime } from "@/lib/format";
 import { getInstrument } from "@/lib/market/catalog";
+import { getHistory } from "@/lib/market/engine";
 import type { Range } from "@/lib/market/types";
 import { usePortfolio } from "@/lib/store/provider";
 import {
@@ -58,12 +62,36 @@ export function DashboardView() {
   const { openTrade } = useTrade();
   const [range, setRange] = React.useState<Range>("3M");
   const [moverTab, setMoverTab] = React.useState<"gainers" | "losers" | "active">("gainers");
+  const [statsScope, setStatsScope] = React.useState<StatsScope>("portfolio");
 
   const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
   const holdings = React.useMemo(() => buildHoldings(state, quotes), [state, quotes]);
   const slices = React.useMemo(() => allocationBy(holdings, "sector"), [holdings]);
   const performance = React.useMemo(() => buildPerformance(state, range), [state, range]);
   const movers = React.useMemo(() => topMovers(quotes), [quotes]);
+  const myStock = React.useMemo(() => buildMyStockRows(holdings, state.activity), [holdings, state.activity]);
+
+  // Best / worst position by unrealised return — drives the reference design's
+  // "Top / Worst Performance" pills and what the Statistics chart plots.
+  const ranked = React.useMemo(
+    () => [...holdings].sort((a, b) => b.unrealizedPnlPct - a.unrealizedPnlPct),
+    [holdings],
+  );
+  const topHolding = ranked[0] ?? null;
+  const worstHolding = ranked.length > 1 ? ranked[ranked.length - 1]! : null;
+  const focusHolding = statsScope === "worst" ? worstHolding : statsScope === "top" ? topHolding : null;
+
+  const monthSeries = React.useMemo(() => buildPerformance(state, "1M", false), [state]);
+  const statData = React.useMemo<StatPoint[]>(() => {
+    if (!hydrated) return [];
+    if (focusHolding) {
+      return getHistory(focusHolding.instrument, "1M").map((candle) => ({ t: candle.t, value: candle.c }));
+    }
+    return monthSeries.map((point) => ({ t: point.t, value: point.value }));
+  }, [hydrated, focusHolding, monthSeries]);
+  const statSubject = focusHolding
+    ? `${focusHolding.instrument.symbol} · ${statsScope === "worst" ? "weakest" : "strongest"} holding`
+    : "Whole portfolio";
 
   const pending = state.orders.filter((order) => order.status === "pending");
   const watched = state.watchlist
@@ -99,63 +127,52 @@ export function DashboardView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="h-10 rounded-full border-border/70 bg-card px-4">
             <Link href="/app/wallet">
               <BanknoteIcon />
               Add funds
             </Link>
           </Button>
-          <Button size="sm" onClick={() => openTrade()} className="gap-1.5">
+          <Button size="sm" onClick={() => openTrade()} className="h-10 gap-1.5 rounded-full px-5">
             <PlusIcon />
             New trade
           </Button>
         </div>
       </div>
 
-      {/* -------------------------------------------------------------- KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Total portfolio value"
-          icon={WalletIcon}
-          ready={hydrated}
-          value={formatMoney(summary.totalValue)}
-          footer={
-            <span className="text-muted-foreground">
-              {formatMoney(summary.netContributions)} contributed
-            </span>
-          }
-          accent
+      {/* ------------------------------------------------- stock card rail */}
+      <StockRail />
+
+      {/* ------------------------------------------- values + statistics */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+        <PortfolioValuesCard
+          ready={hydrated && ready}
+          totalValue={summary.totalValue}
+          changeAmount={summary.totalReturn}
+          changePct={summary.totalReturnPct}
+          profitAmount={summary.unrealizedPnl}
+          positionCount={summary.positionCount}
+          top={topHolding}
+          worst={worstHolding}
+          scope={statsScope}
+          onScope={setStatsScope}
+          stats={[
+            {
+              label: "Today",
+              value: `${summary.dayChange >= 0 ? "+" : "\u2212"}${formatMoney(Math.abs(summary.dayChange))}`,
+              sub: formatPercent(summary.dayChangePct),
+              tone: summary.dayChange >= 0 ? "gain" : "loss",
+            },
+            { label: "Invested", value: formatCompactMoney(summary.invested) },
+            { label: "Cash", value: formatCompactMoney(summary.cash) },
+          ]}
         />
-        <KpiCard
-          label="Today's P&L"
-          icon={summary.dayChange >= 0 ? TrendingUpIcon : TrendingDownIcon}
-          ready={hydrated}
-          value={`${summary.dayChange >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.dayChange))}`}
-          tone={summary.dayChange >= 0 ? "gain" : "loss"}
-          footer={<ChangeChip pct={summary.dayChangePct} size="sm" showIcon={false} />}
-        />
-        <KpiCard
-          label="Unrealised return"
-          icon={LineChartIcon}
-          ready={hydrated}
-          value={`${summary.unrealizedPnl >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.unrealizedPnl))}`}
-          tone={summary.unrealizedPnl >= 0 ? "gain" : "loss"}
-          footer={
-            <span className={summary.unrealizedPnl >= 0 ? "text-gain" : "text-loss"}>
-              {formatPercent(summary.unrealizedPnlPct)} on invested capital
-            </span>
-          }
-        />
-        <KpiCard
-          label="Buying power"
-          icon={BanknoteIcon}
-          ready={hydrated}
-          value={formatMoney(summary.cash)}
-          footer={
-            <Link href="/app/wallet" className="text-primary hover:underline">
-              Manage cash →
-            </Link>
-          }
+
+        <StatisticsCard
+          ready={hydrated && ready}
+          subject={statSubject}
+          caption="last month"
+          data={statData}
         />
       </div>
 
@@ -279,29 +296,45 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* --------------------------------------------------- holdings + side */}
-      <div className="grid gap-4 xl:grid-cols-[1.62fr_1fr]">
+      {/* ---------------------------------------------------- my stock + side */}
+      <div className="grid gap-5 xl:grid-cols-[1.62fr_1fr]">
         <Card className="overflow-hidden p-0">
-          <CardHeader className="flex-row items-center justify-between gap-3 border-b p-4 sm:p-5">
-            <div>
-              <CardTitle>Your holdings</CardTitle>
-              <CardDescription>Ranked by market value</CardDescription>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70 p-4 sm:p-5">
+            <div className="flex items-center gap-2.5">
+              <CardTitle className="text-[17px] font-semibold tracking-tight">My Stock</CardTitle>
+              <span className="tnum rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                {hydrated ? myStock.length : "—"}
+              </span>
             </div>
-            <Button asChild variant="ghost" size="sm" className="text-primary">
+            <Button asChild variant="ghost" size="sm" className="rounded-full text-primary">
               <Link href="/app/portfolio">
                 View portfolio
                 <ArrowRightIcon />
               </Link>
             </Button>
           </CardHeader>
-          {hydrated ? (
-            <HoldingsTable holdings={holdings.slice(0, 6)} onTrade={openTrade} />
-          ) : (
+
+          {!hydrated ? (
             <div className="space-y-2 p-5">
               {Array.from({ length: 5 }).map((_, index) => (
-                <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                <Skeleton key={index} className="h-12 w-full rounded-xl" />
               ))}
             </div>
+          ) : myStock.length === 0 ? (
+            <EmptyState
+              icon={<ArrowUpRightIcon className="size-5" />}
+              title="No stock yet"
+              description="Buy your first position and it will show up here with its invest date, volume and change."
+              className="py-12"
+              action={
+                <Button size="sm" className="rounded-full" onClick={() => openTrade()}>
+                  <PlusIcon />
+                  New trade
+                </Button>
+              }
+            />
+          ) : (
+            <MyStockTable rows={myStock} onTrade={openTrade} />
           )}
         </Card>
 
@@ -521,53 +554,3 @@ export function DashboardView() {
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  footer,
-  ready,
-  tone,
-  accent,
-}: {
-  label: string;
-  value: string;
-  icon: typeof WalletIcon;
-  footer?: React.ReactNode;
-  ready: boolean;
-  tone?: "gain" | "loss";
-  accent?: boolean;
-}) {
-  return (
-    <Card className={cn("relative overflow-hidden p-4", accent && "border-primary/35 bg-primary/5")}>
-      {accent && (
-        <div className="pointer-events-none absolute -top-20 -right-16 size-44 rounded-full bg-primary/15 blur-3xl" />
-      )}
-      <div className="relative flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{label}</p>
-        <span
-          className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-lg border",
-            accent ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-muted/60 text-muted-foreground",
-          )}
-        >
-          <Icon className="size-4" strokeWidth={2} />
-        </span>
-      </div>
-      {ready ? (
-        <p
-          className={cn(
-            "tnum relative mt-2 text-2xl font-semibold tracking-tight",
-            tone === "gain" && "text-gain",
-            tone === "loss" && "text-loss",
-          )}
-        >
-          {value}
-        </p>
-      ) : (
-        <Skeleton className="relative mt-2.5 h-7 w-32" />
-      )}
-      <div className="relative mt-1.5 flex min-h-5 items-center text-[11.5px]">{footer}</div>
-    </Card>
-  );
-}

@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { Sidebar } from "@/components/app/sidebar";
-import { TickerTape } from "@/components/app/ticker-tape";
 import { Topbar } from "@/components/app/topbar";
 import { TradeDialog } from "@/components/trade/trade-dialog";
 import { usePortfolio } from "@/lib/store/provider";
@@ -42,21 +41,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Sidebar />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <TickerTape />
           <Topbar onTrade={openTrade} />
 
           <main
-            className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-6"
+            className="min-w-0 flex-1 px-4 pt-2 pb-8 sm:px-6"
             data-density={state.settings.compactTables ? "compact" : "comfortable"}
           >
-            <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1360px]">{children}</div>
           </main>
 
-          <footer className="border-t border-sidebar-border px-5 py-4 text-[11.5px] text-muted-foreground">
-            <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2">
+          <footer className="px-6 pb-6 text-[11.5px] text-muted-foreground">
+            <div className="mx-auto flex max-w-[1360px] flex-wrap items-center justify-between gap-2">
               <p>
-                <span className="font-semibold text-foreground">Monievest</span> is a design &amp; engineering demo.
-                Prices, fills and balances are simulated locally in your browser.
+                <span className="font-semibold text-foreground">Monievest</span> is a demo — prices, fills and
+                balances are simulated locally in your browser.
               </p>
               <p>Not investment advice · No real securities are traded</p>
             </div>
