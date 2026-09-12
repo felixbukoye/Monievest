@@ -98,7 +98,6 @@ export default function LandingPage() {
 /* -------------------------------------------------------------------------- */
 
 function SiteHeader() {
-  const accountsEnabled = getSupabaseEnv().configured;
   const [scrolled, setScrolled] = React.useState(false);
 
   React.useEffect(() => {
@@ -115,7 +114,7 @@ function SiteHeader() {
         scrolled ? "border-border/70 bg-background/80 backdrop-blur-xl" : "border-transparent bg-transparent",
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-6 sm:px-6">
         <Wordmark />
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -135,15 +134,23 @@ function SiteHeader() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <ModeToggle />
-          <Button asChild variant="ghost" className="hidden sm:flex">
-            <Link href={accountsEnabled ? "/login" : "/app"}>Sign in</Link>
+          <Button
+            asChild
+            variant="ghost"
+            className="h-8 px-2.5 text-[12.5px] sm:h-9 sm:px-4 sm:text-sm"
+          >
+            <Link href="/login">Sign in</Link>
           </Button>
-          <Button asChild variant="glow">
-            <Link href="/app">
-              Open app
-              <ArrowRightIcon />
+          <Button
+            asChild
+            variant="glow"
+            className="h-8 gap-1 px-3 text-[12.5px] sm:h-9 sm:gap-1.5 sm:px-4 sm:text-sm"
+          >
+            <Link href="/signup">
+              Sign up
+              <ArrowRightIcon className="hidden sm:block" />
             </Link>
           </Button>
         </div>
@@ -155,6 +162,8 @@ function SiteHeader() {
 /* -------------------------------------------------------------------------- */
 
 function Hero() {
+  const accountsEnabled = getSupabaseEnv().configured;
+
   return (
     <section className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 surface-grid [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]" />
@@ -183,8 +192,8 @@ function Hero() {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button asChild size="xl" variant="glow">
-              <Link href="/app">
-                Start investing free
+              <Link href={accountsEnabled ? "/signup" : "/app"}>
+                {accountsEnabled ? "Create free account" : "Start investing free"}
                 <ArrowRightIcon />
               </Link>
             </Button>
@@ -192,6 +201,13 @@ function Hero() {
               <Link href="/app/markets">Explore markets</Link>
             </Button>
           </div>
+
+          <p className="mt-4 text-[13.5px] text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+              Sign in to your portfolio
+            </Link>
+          </p>
 
           <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t pt-6">
             {[
@@ -665,13 +681,13 @@ function FinalCta() {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button asChild size="xl" variant="glow">
-            <Link href="/app">
-              Launch the app
+            <Link href={accountsEnabled ? "/signup" : "/app"}>
+              {accountsEnabled ? "Create your account" : "Launch the app"}
               <ArrowRightIcon />
             </Link>
           </Button>
           <Button asChild size="xl" variant="outline">
-            <Link href="/app/portfolio">View sample portfolio</Link>
+            <Link href="/login">Sign in</Link>
           </Button>
         </div>
         <p className="mt-6 text-[12px] text-muted-foreground">
@@ -685,7 +701,7 @@ function FinalCta() {
 function SiteFooter() {
   return (
     <footer className="border-t bg-sidebar/60">
-      <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <div>
           <Wordmark showTagline />
           <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
@@ -716,10 +732,19 @@ function SiteFooter() {
           {
             title: "Resources",
             links: [
-              { label: "Activity log", href: "/app/activity" },
-              { label: "Settings", href: "/app/settings" },
               { label: "Features", href: "#features" },
               { label: "How it works", href: "#how-it-works" },
+              { label: "Markets", href: "#markets" },
+              { label: "Themes", href: "#themes" },
+            ],
+          },
+          {
+            title: "Account",
+            links: [
+              { label: "Sign in", href: "/login" },
+              { label: "Create account", href: "/signup" },
+              { label: "Settings", href: "/app/settings" },
+              { label: "Activity log", href: "/app/activity" },
             ],
           },
         ].map((column) => (

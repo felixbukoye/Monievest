@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOutIcon, MenuIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, WalletIcon } from "lucide-react";
+import {
+  LogInIcon,
+  LogOutIcon,
+  MenuIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  SettingsIcon,
+  UserPlusIcon,
+  WalletIcon,
+} from "lucide-react";
 import * as React from "react";
 
 import { MarketStatus } from "@/components/app/market-status";
@@ -101,24 +111,36 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 className="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/40"
                 aria-label="Account menu"
               >
-                <GeneratedAvatar name={state.account.name} seed={state.account.email} className="size-9" />
+                <GeneratedAvatar
+                  name={signedIn ? state.account.name : "Guest"}
+                  seed={signedIn ? state.account.email : "guest"}
+                  className="size-9"
+                />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[15rem]">
               <DropdownMenuLabel className="normal-case">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-foreground">{state.account.name}</span>
-                  <span className="font-mono text-[11px] font-normal">{state.account.email}</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {auth.status === "loading" ? "Checking session…" : signedIn ? state.account.name : "Guest"}
+                  </span>
+                  <span className="font-mono text-[11px] font-normal">
+                    {auth.status === "loading"
+                      ? "Reading your Supabase session"
+                      : signedIn
+                        ? (auth.email ?? state.account.email)
+                        : "Not signed in"}
+                  </span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="flex items-center justify-between px-2.5 py-1.5">
-                <span className="text-xs text-muted-foreground">Plan</span>
-                <Badge variant="default">{state.account.tier}</Badge>
-              </div>
-              <div className="flex items-center justify-between px-2.5 py-1.5">
-                <span className="text-xs text-muted-foreground">Account</span>
-                <span className="font-mono text-xs">{state.account.accountNumber}</span>
+                <span className="text-xs text-muted-foreground">{signedIn ? "Account" : "Mode"}</span>
+                {signedIn ? (
+                  <span className="font-mono text-xs">{state.account.accountNumber}</span>
+                ) : (
+                  <Badge variant="outline">Local demo</Badge>
+                )}
               </div>
               <div className="flex items-center justify-between gap-3 px-2.5 py-1.5">
                 <span className="text-xs text-muted-foreground">Sync</span>
@@ -142,12 +164,23 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 <RefreshCwIcon />
                 {signedIn ? "Reset account" : "Reset demo data"}
               </DropdownMenuItem>
-              {signedIn && (
+              <DropdownMenuSeparator />
+              {auth.status === "loading" ? (
+                <DropdownMenuItem disabled>Checking session…</DropdownMenuItem>
+              ) : signedIn ? (
+                <DropdownMenuItem variant="destructive" onClick={() => void signOut()}>
+                  <LogOutIcon />
+                  Sign out
+                </DropdownMenuItem>
+              ) : (
                 <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onClick={() => void signOut()}>
-                    <LogOutIcon />
-                    Sign out
+                  <DropdownMenuItem onClick={() => router.push("/login")}>
+                    <LogInIcon />
+                    Sign in
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/signup")}>
+                    <UserPlusIcon />
+                    Create account
                   </DropdownMenuItem>
                 </>
               )}

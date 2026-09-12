@@ -346,9 +346,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi…`}
                     </pre>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/signup">Open the sign-up page</Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" asChild>
+                    <Link href="/signup">Create account</Link>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href="/login">Sign in</Link>
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>

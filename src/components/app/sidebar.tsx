@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MonitorIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
+import { LogOutIcon, MonitorIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as React from "react";
 
+import { SyncStatus } from "@/components/app/sync-status";
 import { Wordmark } from "@/components/brand";
 import { useMarket } from "@/components/market/market-provider";
 import { GeneratedAvatar } from "@/components/ui/avatar";
@@ -75,7 +76,8 @@ export function SidebarContent({
   onTrade?: (symbol?: string) => void;
 }) {
   const pathname = usePathname();
-  const { state, hydrated } = usePortfolio();
+  const { state, hydrated, auth, signOut } = usePortfolio();
+  const signedIn = auth.status === "authenticated";
   const { quotes } = useMarket();
   const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
   const pending = state.orders.filter((order) => order.status === "pending").length;
@@ -174,17 +176,72 @@ export function SidebarContent({
 
         <ThemeSegmented />
 
-        <Link
-          href="/app/settings"
-          onClick={onNavigate}
-          className="flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-sidebar-accent/60"
-        >
-          <GeneratedAvatar name={state.account.name} seed={state.account.email} className="size-8" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12.5px] font-semibold">{state.account.name}</span>
-            <span className="block truncate text-[11px] text-muted-foreground">{state.account.tier}</span>
-          </span>
-        </Link>
+        {/* ------------------------------------------------------ account */}
+        <div className="rounded-xl border border-border/70 bg-card p-2">
+          <Link
+            href="/app/settings"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-sidebar-accent/60"
+          >
+            <GeneratedAvatar
+              name={signedIn ? state.account.name : "Guest"}
+              seed={signedIn ? state.account.email : "guest"}
+              className="size-8"
+            />
+            <span className="min-w-0 flex-1">
+              {auth.status === "loading" ? (
+                <>
+                  <Skeleton className="h-3.5 w-20" />
+                  <Skeleton className="mt-1.5 h-3 w-24" />
+                </>
+              ) : (
+                <>
+                  <span className="block truncate text-[12.5px] font-semibold">
+                    {signedIn ? state.account.name : "Guest"}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {signedIn ? (auth.email ?? state.account.email) : "Not signed in"}
+                  </span>
+                </>
+              )}
+            </span>
+          </Link>
+
+          {auth.status === "loading" ? (
+            <div className="mt-1.5 flex items-center justify-between gap-2 px-1.5 pb-1">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-14" />
+            </div>
+          ) : signedIn ? (
+            <div className="mt-1 flex items-center justify-between gap-2 px-1.5 pb-0.5">
+              <SyncStatus className="min-w-0" />
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate?.();
+                  void signOut();
+                }}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+              >
+                <LogOutIcon className="size-3.5" />
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="mt-1 grid grid-cols-2 gap-1.5">
+              <Button asChild size="sm" variant="outline" className="h-8 rounded-lg text-[11.5px]">
+                <Link href="/login" onClick={onNavigate}>
+                  Sign in
+                </Link>
+              </Button>
+              <Button asChild size="sm" className="h-8 rounded-lg text-[11.5px]">
+                <Link href="/signup" onClick={onNavigate}>
+                  Sign up
+                </Link>
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
