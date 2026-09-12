@@ -237,6 +237,7 @@ export function buildQuotes(now = Date.now()): Record<string, Quote> {
       updatedAt: now,
       direction: "flat",
       intraday,
+      source: "simulated",
     };
   }
   return quotes;
@@ -296,6 +297,7 @@ export function tickQuotes(
       updatedAt: now,
       direction,
       intraday,
+      source: "simulated",
     };
   }
   return next;

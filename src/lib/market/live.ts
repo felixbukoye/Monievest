@@ -41,16 +41,28 @@ export async function fetchLiveConfig(): Promise<LiveConfig> {
   return data ?? SIMULATED_CONFIG;
 }
 
-export async function fetchLiveQuotes(symbols: string[]): Promise<Record<string, LiveQuote>> {
-  if (symbols.length === 0) return {};
+export type LiveDiagnostics = {
+  lastError: { status: number; message: string; at: number } | null;
+  callsLastMinute: number;
+  cacheEntries: number;
+  capabilities: Record<string, boolean>;
+};
 
-  const data = await getJson<{ live: boolean; quotes: Record<string, LiveQuote> }>("/api/market/quotes", {
+export type LiveQuotesResponse = {
+  live: boolean;
+  quotes: Record<string, LiveQuote>;
+  missing: string[];
+  diagnostics?: LiveDiagnostics;
+};
+
+export async function fetchLiveQuotes(symbols: string[]): Promise<LiveQuotesResponse | null> {
+  if (symbols.length === 0) return null;
+
+  return getJson<LiveQuotesResponse>("/api/market/quotes", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ symbols }),
   });
-
-  return data?.live ? data.quotes : {};
 }
 
 export type LiveSearchHit = { symbol: string; name: string; type: string };
@@ -120,6 +132,7 @@ export function mergeLiveQuote(
     updatedAt: live.updatedAt || now,
     direction,
     intraday,
+    source: "live",
   };
 }
 

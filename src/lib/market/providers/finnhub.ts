@@ -86,8 +86,35 @@ export const capabilities = {
 
 export type CapabilityName = keyof typeof capabilities;
 
+export type ProviderDiagnostics = {
+  /** What the provider last said when something failed — surfaced in the UI. */
+  lastError: { status: number; message: string; at: number } | null;
+  /** Calls made in the trailing minute, so the free-tier budget is visible. */
+  callsLastMinute: number;
+  cacheEntries: number;
+  capabilities: Record<CapabilityName, boolean>;
+};
+
+let lastError: ProviderDiagnostics["lastError"] = null;
+
+function recordError(status: number, message: string) {
+  lastError = { status, message, at: Date.now() };
+}
+
+export function getDiagnostics(): ProviderDiagnostics {
+  const now = Date.now();
+  while (stamps.length > 0 && now - stamps[0]! > 60_000) stamps.shift();
+
+  return {
+    lastError,
+    callsLastMinute: stamps.length,
+    cacheEntries: cache.size,
+    capabilities: { ...capabilities },
+  };
+}
+
 const TIMEOUT_MS = 9000;
-const BUDGET_PER_MINUTE = 50;
+const BUDGET_PER_MINUTE = 55;
 const MAX_QUEUE_WAIT_MS = 4000;
 const MAX_CACHE_ENTRIES = 4000;
 
@@ -178,18 +205,23 @@ async function get<T>(
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) disableCapabilityFor(path);
-      return { ok: false, status: response.status, message: `finnhub responded ${response.status}` };
+      const message =
+        response.status === 401
+          ? "Finnhub rejected the API key (401). Check FINNHUB_API_KEY in .env.local."
+          : response.status === 403
+            ? `Finnhub refused ${path} (403) — this endpoint is not on your plan, so the simulator serves it.`
+            : `Finnhub responded ${response.status} for ${path}.`;
+      recordError(response.status, message);
+      return { ok: false, status: response.status, message };
     }
 
     const data = (await response.json()) as T;
     cacheWrite(cacheKey, data);
     return { ok: true, data };
   } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      message: error instanceof Error ? error.message : "network error",
-    };
+    const message = error instanceof Error ? error.message : "network error";
+    recordError(0, `Could not reach Finnhub (${path}): ${message}`);
+    return { ok: false, status: 0, message };
   }
 }
 
@@ -218,6 +250,8 @@ export async function fetchQuotes(symbols: string[]): Promise<Record<string, Fin
   for (const raw of symbols) {
     const symbol = raw.toUpperCase();
     if (!symbol || out[symbol]) continue;
+    // Once quotes are known to be blocked, stop spending the budget.
+    if (!capabilities.quotes) break;
     const quote = await fetchQuote(symbol);
     if (quote) out[symbol] = quote;
   }
@@ -267,6 +301,7 @@ export async function fetchCandles(symbol: string, range: Range): Promise<Candle
   if (result.data?.s && result.data.s !== "ok") {
     // "no_permission" on free keys — stop probing and let the simulator serve.
     disableCapabilityFor("/stock/candle");
+    recordError(403, `Finnhub candles are not available on this key (${result.data.s}) — charts use simulated history.`);
     return null;
   }
 

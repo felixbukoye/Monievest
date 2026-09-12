@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { getMarketConfig } from "@/lib/config/env";
-import { fetchQuotes } from "@/lib/market/providers/finnhub";
+import { fetchQuotes, getDiagnostics } from "@/lib/market/providers/finnhub";
 import type { LiveQuote } from "@/lib/market/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Finnhub has no batch endpoint, so each symbol costs one rate-limited call. */
-const MAX_SYMBOLS_PER_REQUEST = 40;
+const MAX_SYMBOLS_PER_REQUEST = 60;
 
 export async function POST(request: Request) {
   const config = getMarketConfig();
   if (!config.live) {
-    return NextResponse.json({ live: false, quotes: {}, missing: [] });
+    return NextResponse.json({ live: false, quotes: {}, missing: [], diagnostics: getDiagnostics() });
   }
 
   const body = (await request.json().catch(() => null)) as { symbols?: unknown } | null;
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     .slice(0, MAX_SYMBOLS_PER_REQUEST);
 
   if (symbols.length === 0) {
-    return NextResponse.json({ live: true, quotes: {}, missing: [] });
+    return NextResponse.json({ live: true, quotes: {}, missing: [], diagnostics: getDiagnostics() });
   }
 
   const raw = await fetchQuotes(symbols);
@@ -49,5 +49,6 @@ export async function POST(request: Request) {
     live: true,
     quotes,
     missing: symbols.filter((symbol) => !quotes[symbol]),
+    diagnostics: getDiagnostics(),
   });
 }

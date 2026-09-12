@@ -63,6 +63,8 @@ export type Quote = {
   direction: "up" | "down" | "flat";
   /** Rolling intraday path, newest last. */
   intraday: { t: number; p: number }[];
+  /** Which source produced this quote — lets the UI mark real prices. */
+  source?: "live" | "simulated";
 };
 
 /**

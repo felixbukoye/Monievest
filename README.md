@@ -284,8 +284,8 @@ handlers.
 
 **What goes live**
 
-- Prices for your positions, watchlist and the catalogued instruments, polled on an interval
-  (`MARKET_DATA_CACHE_SECONDS`, default 45s) and merged over the board
+- Prices for **every** catalogued instrument plus your positions and watchlist, merged over the
+  board (the first poll primes the whole list, then it is refreshed in rotating chunks)
 - Search beyond the 44 curated instruments — the full US-listed universe
 - Deep links to any resolved ticker (`/app/stock/RIVN`), resolved server-side from quote + profile
 - Real candles on the stock page when your plan permits them
@@ -300,10 +300,17 @@ handlers.
 - Simulated news
 
 **Staying inside the free tier.** Finnhub has no batch quote endpoint, so each symbol costs one
-call. The server budgets 50 calls/minute, queues briefly, then serves the cached value; the client
-caps each poll at 40 symbols, prioritising open positions and the watchlist. At the default 45s
-interval that is ≈53 calls/minute — inside the limit. Turning off **Live prices** in Settings stops
-provider polling entirely.
+call. The board is therefore refreshed in rotating chunks: enabling live data primes every symbol
+once (up to 48), then 12 symbols are polled every ~15s. With the default 60s server cache that
+lands at ≈48 calls/minute. The server additionally budgets 55 calls/minute, queues briefly, then
+serves the cached value, so a slow network can never trip a 429. Turning off **Live prices** in
+Settings stops provider polling entirely.
+
+**Seeing what is real.** The Markets page prints a banner — `Real prices via Finnhub · 44 of 44
+symbols live · updated 14:02:11 · 48 API calls in the last minute` — and every row with a real
+price carries a violet dot. If the key is missing, invalid or the endpoint is not on your plan, an
+amber banner shows the provider's actual error instead of silently displaying simulated numbers.
+The topbar pill reads `LIVE`, `STALE` or `SIM`.
 
 **Knowing which mode you are in.** The pill in the topbar reads `LIVE` (real prices, with the
 provider name and last update on hover), `STALE` (a poll failed) or `SIM` (simulator). The stock

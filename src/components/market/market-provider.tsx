@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { INSTRUMENTS_BY_SYMBOL } from "@/lib/market/catalog";
 import { buildIndices, marketSession, type IndexQuote } from "@/lib/market/engine";
-import { fetchLiveConfig, SIMULATED_CONFIG, type LiveConfig } from "@/lib/market/live";
+import { fetchLiveConfig, SIMULATED_CONFIG, type LiveConfig, type LiveDiagnostics } from "@/lib/market/live";
 import { marketStore, useMarketSnapshot } from "@/lib/market/store";
 import type { Quote } from "@/lib/market/types";
 import { usePortfolio } from "@/lib/store/provider";
@@ -28,6 +28,10 @@ type MarketContextValue = {
   liveUpdatedAt: number;
   liveError: string | null;
   liveWarning: string | null;
+  /** Provider health: budget usage, capabilities and the last failure. */
+  liveDiagnostics: LiveDiagnostics | null;
+  /** How many symbols on the board currently carry a real provider price. */
+  liveCount: number;
   quote: (symbol: string) => Quote | undefined;
   price: (symbol: string) => number | null;
   changePct: (symbol: string) => number | null;
@@ -40,7 +44,7 @@ const MarketContext = createContext<MarketContextValue | null>(null);
 export function MarketProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = usePortfolio();
   const snapshot = useMarketSnapshot();
-  const { quotes, ready, lastTickAt, source, provider, liveUpdatedAt, liveError } = snapshot;
+  const { quotes, ready, lastTickAt, source, provider, liveUpdatedAt, liveError, liveDiagnostics } = snapshot;
 
   const live = state.settings.livePrices;
   const autoFill = state.settings.autoFillLimits;
@@ -102,6 +106,11 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   }, [quotes, ready, autoFill, orders, dispatch]);
 
   const indices = useMemo(() => (ready ? buildIndices(quotes) : []), [quotes, ready]);
+
+  const liveCount = useMemo(
+    () => Object.values(quotes).reduce((count, quote) => (quote.source === "live" ? count + 1 : count), 0),
+    [quotes],
+  );
   const step = useCallback(() => marketStore.step(), []);
 
   const quote = useCallback((symbol: string) => quotes[symbol?.toUpperCase()], [quotes]);
@@ -131,6 +140,8 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       liveUpdatedAt,
       liveError,
       liveWarning: config.warning,
+      liveDiagnostics,
+      liveCount,
       quote,
       price,
       changePct,
@@ -149,6 +160,8 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       config.warning,
       liveUpdatedAt,
       liveError,
+      liveDiagnostics,
+      liveCount,
       quote,
       price,
       changePct,

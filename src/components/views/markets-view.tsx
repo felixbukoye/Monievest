@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpDownIcon, ListFilterIcon, SearchIcon, SlidersHorizontalIcon, StarIcon } from "lucide-react";
+import {
+  ActivityIcon,
+  ArrowUpDownIcon,
+  ListFilterIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
+  StarIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import * as React from "react";
 
 import { useTrade } from "@/components/app/app-shell";
@@ -17,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCompactMoney, formatMoney, formatNumber, formatVolume } from "@/lib/format";
-import { CATALOG, SECTORS } from "@/lib/market/catalog";
+import { SECTORS, allInstruments } from "@/lib/market/catalog";
 import type { Instrument } from "@/lib/market/types";
 import { usePortfolio } from "@/lib/store/provider";
 import { cn } from "@/lib/utils";
@@ -79,9 +87,23 @@ function SortableHead({
 }
 
 export function MarketsView() {
-  const { quotes, ready } = useMarket();
+  const {
+    quotes,
+    ready,
+    source,
+    liveConfigured,
+    providerLabel,
+    liveCount,
+    liveUpdatedAt,
+    liveError,
+    liveWarning,
+    liveDiagnostics,
+  } = useMarket();
   const { state, toggleWatchlist } = usePortfolio();
   const { openTrade } = useTrade();
+
+  // Curated catalog plus anything discovered through live search.
+  const universe = allInstruments();
 
   const [query, setQuery] = React.useState("");
   const [sector, setSector] = React.useState<string>("all");
@@ -92,7 +114,7 @@ export function MarketsView() {
 
   const rows = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = CATALOG.filter((instrument) => {
+    let list = universe.filter((instrument) => {
       if (kind !== "all" && instrument.kind !== kind) return false;
       if (sector !== "all" && instrument.sector !== sector) return false;
       if (watchlistOnly && !state.watchlist.includes(instrument.symbol)) return false;
@@ -131,7 +153,7 @@ export function MarketsView() {
     });
 
     return list;
-  }, [query, sector, kind, sort, ascending, watchlistOnly, state.watchlist, quotes]);
+  }, [query, sector, kind, sort, ascending, watchlistOnly, state.watchlist, quotes, universe]);
 
   function toggleSort(key: SortKey) {
     if (key === sort) setAscending((value) => !value);
@@ -150,9 +172,13 @@ export function MarketsView() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Markets</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {CATALOG.length} simulated instruments ·{" "}
-            <span className="text-gain">{advancing} advancing</span> ·{" "}
+            {universe.length} instruments · <span className="text-gain">{advancing} advancing</span> ·{" "}
             <span className="text-loss">{declining} declining</span>
+            {liveConfigured && (
+              <>
+                {" "}· <span className="text-primary">{liveCount} live prices</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -162,6 +188,58 @@ export function MarketsView() {
           </Badge>
         </div>
       </div>
+
+      {/* ------------------------------------------------- data source state */}
+      {liveConfigured && source === "live" && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-primary/25 bg-primary/8 px-3.5 py-2.5 text-[12.5px]">
+          <span className="flex items-center gap-1.5 font-semibold text-primary">
+            <ActivityIcon className="size-3.5" />
+            Real prices via {providerLabel}
+          </span>
+          <span className="tnum text-muted-foreground">
+            {liveCount} of {universe.length} symbols live
+          </span>
+          {liveUpdatedAt > 0 && (
+            <span className="tnum text-muted-foreground">
+              · updated {new Date(liveUpdatedAt).toLocaleTimeString()}
+            </span>
+          )}
+          {liveDiagnostics && (
+            <span className="tnum text-muted-foreground">
+              · {liveDiagnostics.callsLastMinute} API calls in the last minute (free budget ≈60)
+            </span>
+          )}
+          {liveDiagnostics && liveDiagnostics.capabilities.candles === false && (
+            <span className="text-muted-foreground">
+              · historical candles are not on your plan, so charts use simulated history
+            </span>
+          )}
+        </div>
+      )}
+
+      {liveConfigured && source !== "live" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-3 text-[12.5px]">
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="min-w-0">
+            <p className="font-semibold">Live prices are not coming through yet</p>
+            <p className="mt-0.5 text-muted-foreground">
+              {liveError ?? liveWarning ?? "Waiting for the first provider response…"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Prices below are simulated. Check <span className="font-mono">MARKET_DATA_PROVIDER</span> and{" "}
+              <span className="font-mono">FINNHUB_API_KEY</span> in <span className="font-mono">.env.local</span> and
+              save — the dev server reloads env files automatically.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!liveConfigured && (
+        <p className="rounded-xl border border-border/70 bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
+          Showing <span className="font-semibold text-foreground">simulated prices</span>. Add a market-data key to{" "}
+          <span className="font-mono">.env.local</span> (see the README) to switch this board to real quotes.
+        </p>
+      )}
 
       {/* --------------------------------------------------------- filters */}
       <Card className="space-y-3 p-3">
@@ -242,7 +320,7 @@ export function MarketsView() {
         {(query || sector !== "all" || kind !== "all" || watchlistOnly) && (
           <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
             <span>
-              Showing <span className="font-semibold text-foreground">{rows.length}</span> of {CATALOG.length}
+              Showing <span className="font-semibold text-foreground">{rows.length}</span> of {universe.length}
             </span>
             <Button
               variant="ghost"
@@ -325,6 +403,12 @@ export function MarketsView() {
                         <span className="min-w-0">
                           <span className="flex items-center gap-1.5">
                             <span className="font-mono text-[13px] font-semibold">{instrument.symbol}</span>
+                            {quote?.source === "live" && (
+                              <span
+                                className="size-1.5 shrink-0 rounded-full bg-primary"
+                                title={`Real price via ${providerLabel}`}
+                              />
+                            )}
                             {instrument.kind === "etf" && (
                               <Badge variant="muted" className="px-1 py-0 text-[9px]">
                                 ETF

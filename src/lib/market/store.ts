@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { CATALOG } from "./catalog";
 import { buildQuotes, tickQuotes } from "./engine";
-import { fetchLiveQuotes, mergeLiveQuote } from "./live";
+import { fetchLiveQuotes, mergeLiveQuote, type LiveDiagnostics } from "./live";
 import { dynamicSymbols } from "./registry";
 import type { Quote } from "./types";
 
@@ -37,6 +37,8 @@ export type MarketSnapshot = {
   /** Timestamp of the last successful provider poll (0 when simulated). */
   liveUpdatedAt: number;
   liveError: string | null;
+  /** Provider health: capabilities, budget usage and the last failure. */
+  liveDiagnostics: LiveDiagnostics | null;
 };
 
 const EMPTY: MarketSnapshot = {
@@ -47,11 +49,20 @@ const EMPTY: MarketSnapshot = {
   provider: "simulated",
   liveUpdatedAt: 0,
   liveError: null,
+  liveDiagnostics: null,
 };
 
 const TICK_MS = 2200;
-/** One Finnhub call per symbol on the free tier — cap the fan-out per poll. */
-const MAX_LIVE_SYMBOLS = 40;
+/**
+ * Finnhub has no batch endpoint, so every symbol costs one call against a
+ * ~60/min free budget. Instead of one big request, the board is refreshed in
+ * rotating chunks: 12 symbols every ~15s ≈ 48 calls/min, which keeps the whole
+ * catalog real-priced on a rolling minute without ever tripping the limit.
+ */
+const MAX_LIVE_SYMBOLS = 60;
+const CHUNK_SIZE = 12;
+const MIN_STEP_MS = 12_000;
+const MAX_STEP_MS = 30_000;
 
 let snapshot: MarketSnapshot = EMPTY;
 const listeners = new Set<() => void>();
@@ -67,7 +78,13 @@ let pollMs = 45_000;
 let baseSymbols: string[] = [];
 const trackedSymbols = new Set<string>();
 let lastPollAt = 0;
+let pollStepMs = 15_000;
+let chunkCursor = 0;
+let primeNext = false;
 let polling = false;
+
+/** First poll after enabling live data covers the whole board at once. */
+const PRIME_LIMIT = 48;
 
 function emit() {
   for (const listener of Array.from(listeners)) listener();
@@ -97,20 +114,56 @@ function prioritySymbols(): string[] {
   return out.slice(0, MAX_LIVE_SYMBOLS);
 }
 
+/** Next slice of the priority list — the cursor walks the whole board. */
+function nextChunk(symbols: string[]): string[] {
+  if (symbols.length <= CHUNK_SIZE) return symbols;
+  if (chunkCursor >= symbols.length) chunkCursor = 0;
+  const chunk = symbols.slice(chunkCursor, chunkCursor + CHUNK_SIZE);
+  chunkCursor = (chunkCursor + CHUNK_SIZE) % symbols.length;
+  return chunk;
+}
+
 async function pollLive() {
   if (polling || typeof window === "undefined") return;
   polling = true;
 
   try {
+    // Never let a live poll mark the board ready before the simulated base
+    // exists — otherwise symbols outside the first chunk would have no quote.
+    boot();
+
     const symbols = prioritySymbols();
     if (symbols.length === 0) return;
 
-    const live = await fetchLiveQuotes(symbols);
-    const entries = Object.entries(live);
+    const batch = primeNext ? symbols.slice(0, PRIME_LIMIT) : nextChunk(symbols);
+    primeNext = false;
+
+    const response = await fetchLiveQuotes(batch);
     const now = Date.now();
+    const diagnostics = response?.diagnostics ?? snapshot.liveDiagnostics;
+
+    if (!response || !response.live) {
+      snapshot = {
+        ...snapshot,
+        liveError: "Live market data is not enabled on the server.",
+        liveDiagnostics: diagnostics,
+      };
+      emit();
+      return;
+    }
+
+    const entries = Object.entries(response.quotes ?? {});
 
     if (entries.length === 0) {
-      snapshot = { ...snapshot, liveError: "The provider returned no quotes for these symbols." };
+      snapshot = {
+        ...snapshot,
+        liveError:
+          diagnostics?.lastError?.message ??
+          (response.missing?.length
+            ? `The provider returned no quotes for ${response.missing.length} symbol(s) — those prices stay simulated.`
+            : "The provider returned no quotes."),
+        liveDiagnostics: diagnostics,
+      };
       emit();
       return;
     }
@@ -128,6 +181,7 @@ async function pollLive() {
       provider: providerName,
       liveUpdatedAt: now,
       liveError: null,
+      liveDiagnostics: diagnostics,
     };
     emit();
   } catch (error) {
@@ -155,7 +209,7 @@ function start() {
     // simulated random walk is frozen between polls instead of drifting away
     // from the real quote.
     if (tickingEnabled && providerEnabled) {
-      if (now - lastPollAt >= pollMs) void pollLive();
+      if (now - lastPollAt >= pollStepMs) void pollLive();
       return;
     }
 
@@ -169,6 +223,7 @@ function start() {
       provider: "simulated",
       liveUpdatedAt: snapshot.liveUpdatedAt,
       liveError: snapshot.liveError,
+      liveDiagnostics: snapshot.liveDiagnostics,
     };
     emit();
   }, TICK_MS);
@@ -215,14 +270,28 @@ export const marketStore = {
     providerEnabled = options.enabled;
     providerName = options.enabled ? options.provider : "simulated";
     pollMs = Math.max(15_000, options.pollMs);
+    // Refresh a chunk several times per cache window so prices look alive.
+    pollStepMs = Math.min(MAX_STEP_MS, Math.max(MIN_STEP_MS, Math.round(pollMs / 4)));
 
     if (providerEnabled && tickingEnabled && typeof window !== "undefined") {
       lastPollAt = 0;
+      chunkCursor = 0;
+      primeNext = true;
       void pollLive();
     } else if (!providerEnabled && snapshot.source === "live") {
       snapshot = { ...snapshot, source: "simulated", provider: "simulated", liveError: null };
       emit();
     }
+  },
+
+  /** Snapshot of provider health for the UI (budget, capabilities, errors). */
+  getDiagnostics() {
+    return snapshot.liveDiagnostics;
+  },
+
+  /** How many symbols currently carry a real provider price. */
+  liveSymbolCount() {
+    return Object.values(snapshot.quotes).filter((quote) => quote.source === "live").length;
   },
 
   /** Symbols that matter most (open positions + watchlist) — polled first. */
@@ -234,7 +303,10 @@ export const marketStore = {
   trackSymbol(symbol: string) {
     const key = symbol?.toUpperCase();
     if (!key) return;
+    const isNew = !trackedSymbols.has(key);
     trackedSymbols.add(key);
+    // A freshly opened symbol should be priced immediately, not in ~a minute.
+    if (isNew && providerEnabled && tickingEnabled) primeNext = true;
     if (providerEnabled && tickingEnabled) {
       lastPollAt = 0;
       if (typeof window !== "undefined") void pollLive();
@@ -264,6 +336,7 @@ export const marketStore = {
       provider: "simulated",
       liveUpdatedAt: snapshot.liveUpdatedAt,
       liveError: snapshot.liveError,
+      liveDiagnostics: snapshot.liveDiagnostics,
     };
     emit();
   },
