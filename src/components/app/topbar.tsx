@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MenuIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, WalletIcon } from "lucide-react";
+import { LogOutIcon, MenuIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, WalletIcon } from "lucide-react";
 import * as React from "react";
 
 import { MarketStatus } from "@/components/app/market-status";
+import { SyncStatus } from "@/components/app/sync-status";
 import { SearchDialog } from "@/components/app/search-dialog";
 import { GeneratedAvatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,8 @@ import { usePortfolio } from "@/lib/store/provider";
 
 export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
   const router = useRouter();
-  const { state, hydrated, resetDemo } = usePortfolio();
+  const { state, hydrated, resetDemo, auth, signOut } = usePortfolio();
+  const signedIn = auth.status === "authenticated";
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [navOpen, setNavOpen] = React.useState(false);
 
@@ -118,6 +120,10 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 <span className="text-xs text-muted-foreground">Account</span>
                 <span className="font-mono text-xs">{state.account.accountNumber}</span>
               </div>
+              <div className="flex items-center justify-between gap-3 px-2.5 py-1.5">
+                <span className="text-xs text-muted-foreground">Sync</span>
+                <SyncStatus className="max-w-[9.5rem]" />
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
                 <WalletIcon />
@@ -128,15 +134,23 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 Settings
               </DropdownMenuItem>
               <DropdownMenuItem
-                variant="destructive"
                 onClick={() => {
                   resetDemo();
                   router.push("/app");
                 }}
               >
                 <RefreshCwIcon />
-                Reset demo data
+                {signedIn ? "Reset account" : "Reset demo data"}
               </DropdownMenuItem>
+              {signedIn && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => void signOut()}>
+                    <LogOutIcon />
+                    Sign out
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

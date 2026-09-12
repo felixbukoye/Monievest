@@ -3,25 +3,30 @@
 import {
   ActivityIcon,
   CheckIcon,
+  CloudOffIcon,
   DatabaseIcon,
   DownloadIcon,
   GaugeIcon,
   InfoIcon,
+  LogOutIcon,
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
   RefreshCwIcon,
   SaveIcon,
+  ShieldCheckIcon,
   SlidersHorizontalIcon,
   SunIcon,
   Trash2Icon,
   UserIcon,
   ZapIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { SyncStatus } from "@/components/app/sync-status";
 import { GeneratedAvatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +46,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useMounted } from "@/lib/hooks/use-mounted";
 import { usePortfolio } from "@/lib/store/provider";
-import { STORAGE_KEY, type Account } from "@/lib/store/types";
+import { storageKeyFor, type Account } from "@/lib/store/types";
 import { cn } from "@/lib/utils";
 
 const THEME_OPTIONS = [
@@ -52,13 +57,13 @@ const THEME_OPTIONS = [
 
 const RANGE_OPTIONS = ["1D", "1W", "1M", "3M", "1Y", "5Y"] as const;
 
-const STACK = ["Next.js 16", "React 19", "TypeScript", "Tailwind v4", "shadcn/ui", "Recharts", "next-themes"];
+const STACK = ["Next.js 16", "React 19", "TypeScript", "Tailwind v4", "shadcn/ui", "Recharts", "Supabase", "next-themes"];
 
 const noopSubscribe = () => () => {};
 const noStorage = () => 0;
-function readStorageBytes() {
+function readStorageBytes(key: string) {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     return raw ? raw.length : 0;
   } catch {
     return 0;
@@ -66,16 +71,26 @@ function readStorageBytes() {
 }
 
 /** Bytes currently held in localStorage — 0 on the server and before mount. */
-function useStorageBytes(): number {
-  return React.useSyncExternalStore(noopSubscribe, readStorageBytes, noStorage);
+function useStorageBytes(key: string): number {
+  const read = React.useCallback(() => readStorageBytes(key), [key]);
+  return React.useSyncExternalStore(noopSubscribe, read, noStorage);
 }
 
 export function SettingsView() {
-  const { state, hydrated, dispatch, resetDemo } = usePortfolio();
+  const { state, hydrated, dispatch, resetDemo, auth, sync, signOut } = usePortfolio();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const mounted = useMounted();
-  const storageBytes = useStorageBytes();
+  const storageKey = storageKeyFor(auth.userId);
+  const storageBytes = useStorageBytes(storageKey);
   const [confirmReset, setConfirmReset] = React.useState(false);
+  const signedIn = auth.status === "authenticated";
+  const lastSaved = sync.lastSyncedAt
+    ? new Date(sync.lastSyncedAt).toLocaleString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : null;
 
   function exportState() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -93,7 +108,9 @@ export function SettingsView() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Theme, trading behaviour, profile and demo data — all stored locally in your browser.
+          {signedIn
+            ? "Theme and trading behaviour stay on this device; your portfolio syncs to your Supabase account."
+            : "Theme, trading behaviour, profile and demo data — all stored locally in your browser."}
         </p>
       </div>
 
@@ -247,6 +264,96 @@ export function SettingsView() {
             instead of needing an effect to sync them. */}
         <ProfileCard key={hydrated ? "hydrated" : "loading"} account={state.account} hydrated={hydrated} />
 
+        {/* -------------------------------------------------- account & sync */}
+        <Card className="p-0">
+          <CardHeader className="border-b p-5">
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheckIcon className="size-4 text-primary" />
+              Account &amp; sync
+            </CardTitle>
+            <CardDescription>
+              {signedIn
+                ? "Positions, orders, cash and watchlist are saved to your own rows in Supabase."
+                : "Sign in to keep your portfolio on any device instead of just this browser."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 p-5">
+            {signedIn ? (
+              <>
+                <div className="space-y-2.5">
+                  <AccountRow label="Email" value={auth.email ?? state.account.email} mono />
+                  <AccountRow label="User ID" value={auth.userId ?? "—"} mono truncate />
+                  <AccountRow label="Last saved" value={lastSaved ?? "Not yet"} />
+                  <div className="flex items-center justify-between gap-3 text-[13px]">
+                    <span className="text-muted-foreground">Status</span>
+                    <SyncStatus />
+                  </div>
+                </div>
+
+                {sync.status === "error" && sync.error && (
+                  <div className="rounded-lg border border-destructive/40 bg-destructive/8 p-3 text-[12.5px] leading-relaxed text-destructive">
+                    <span className="font-semibold">Last sync failed:</span> {sync.error}
+                  </div>
+                )}
+
+                <div className="rounded-xl border bg-muted/25 p-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
+                  <p className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <ShieldCheckIcon className="size-3.5 text-primary" />
+                    Row Level Security
+                  </p>
+                  <p className="mt-1.5">
+                    Every table is restricted to <code className="font-mono text-[11px]">auth.uid() = user_id</code> in Postgres, so
+                    no other signed-in account can read or write your holdings — even with the public anon key.
+                  </p>
+                </div>
+
+                <Button size="sm" variant="outline" onClick={() => void signOut()}>
+                  <LogOutIcon />
+                  Sign out
+                </Button>
+              </>
+            ) : auth.configured ? (
+              <>
+                <div className="flex items-start gap-3 rounded-xl border bg-muted/25 p-3.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  <CloudOffIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <p>
+                    You are browsing as a guest, so this portfolio lives only in this browser. Create a free account to save it to
+                    Supabase and pick it up on any device.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" asChild>
+                    <Link href="/signup">Create account</Link>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href="/login">Sign in</Link>
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-3 rounded-xl border bg-muted/25 p-3.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  <CloudOffIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <div>
+                    <p className="font-semibold text-foreground">Accounts are not configured</p>
+                    <p className="mt-1">
+                      Add your Supabase project to <code className="font-mono text-[11px]">.env.local</code>, run the schema in{" "}
+                      <code className="font-mono text-[11px]">supabase/migrations/0001_init.sql</code>, then restart the dev server:
+                    </p>
+                    <pre className="mt-2 overflow-x-auto rounded-lg bg-foreground/5 p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+{`NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi…`}
+                    </pre>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href="/signup">Open the sign-up page</Link>
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ----------------------------------------------------------- data */}
         <Card className="p-0">
           <CardHeader className="border-b p-5">
@@ -269,9 +376,11 @@ export function SettingsView() {
                 <DatabaseIcon className="size-3.5 text-primary" />
                 localStorage key
               </p>
-              <code className="mt-1 block font-mono text-[11px] break-all">{STORAGE_KEY}</code>
+              <code className="mt-1 block font-mono text-[11px] break-all">{storageKey}</code>
               <p className="mt-1.5">
-                Your portfolio persists across reloads and syncs between open tabs. Clearing site data resets the demo.
+                {signedIn
+                  ? "A local cache of your account — it makes reloads instant and keeps working if Supabase is unreachable. The database stays the source of truth."
+                  : "Your portfolio persists across reloads and syncs between open tabs. Clearing site data resets the demo."}
               </p>
             </div>
 
@@ -287,7 +396,7 @@ export function SettingsView() {
                 onClick={() => setConfirmReset(true)}
               >
                 <RefreshCwIcon />
-                Reset demo data
+                {signedIn ? "Reset account" : "Reset demo data"}
               </Button>
             </div>
           </CardContent>
@@ -336,10 +445,11 @@ export function SettingsView() {
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reset the demo account?</DialogTitle>
+            <DialogTitle>{signedIn ? "Reset your account?" : "Reset the demo account?"}</DialogTitle>
             <DialogDescription>
-              This clears your positions, orders, watchlist and activity from this browser and restores the original
-              seeded portfolio. It can’t be undone.
+              {signedIn
+                ? "This deletes your positions, orders, watchlist and activity from Supabase and restores your starting cash. It can\u2019t be undone."
+                : "This clears your positions, orders, watchlist and activity from this browser and restores the original seeded portfolio. It can\u2019t be undone."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-2">
@@ -471,6 +581,25 @@ function SettingRow({
         </div>
       </div>
       {children}
+    </div>
+  );
+}
+
+function AccountRow({
+  label,
+  value,
+  mono = false,
+  truncate = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  truncate?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-[13px]">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className={cn("text-foreground", mono && "font-mono text-[11.5px]", truncate && "truncate")}>{value}</span>
     </div>
   );
 }

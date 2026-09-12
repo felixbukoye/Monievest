@@ -213,3 +213,37 @@ export function createSeedState(now = Date.now()): PortfolioState {
     settings: { ...DEFAULT_SETTINGS },
   };
 }
+
+/** Demo cash credited to a brand-new account (mirrors the SQL trigger). */
+export const STARTING_CASH = 25_000;
+
+/**
+ * A clean account: starting cash, no positions, no history.
+ *
+ * Used for a freshly signed-up user. The deposit ledger entry itself comes from
+ * the `handle_new_user()` trigger in Postgres, so this intentionally ships an
+ * empty activity list — otherwise the welcome bonus would be counted twice and
+ * the performance maths would disagree with the cash balance.
+ */
+export function createFreshState(
+  account: { name?: string; email?: string; tier?: string; accountNumber?: string } = {},
+  now = Date.now(),
+): PortfolioState {
+  return {
+    version: STATE_VERSION,
+    account: {
+      name: account.name?.trim() || account.email?.split("@")[0] || "Investor",
+      email: account.email ?? "",
+      tier: account.tier ?? "Monievest Plus",
+      accountNumber: account.accountNumber ?? `MV-${uniqueId("").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`,
+      joinedAt: now,
+    },
+    cash: STARTING_CASH,
+    realizedPnl: 0,
+    positions: [],
+    orders: [],
+    activity: [],
+    watchlist: [],
+    settings: { ...DEFAULT_SETTINGS },
+  };
+}

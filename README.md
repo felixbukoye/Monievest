@@ -75,7 +75,9 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 | Charts     | Recharts 3 + hand-rolled SVG sparklines                           |
 | Theming    | next-themes (class strategy, no flash on load)                    |
 | Fonts      | Geist Sans / Geist Mono, self-hosted via the `geist` package      |
-| State      | `useReducer` + React context, persisted to `localStorage`         |
+| State      | `useReducer` + React context, persisted per user                  |
+| Backend    | Supabase (Postgres + RLS, email/password auth) — optional         |
+| Auth       | `@supabase/ssr` cookie sessions, guarded by `src/proxy.ts`        |
 | Market     | Local deterministic simulator (seeded PRNG + Brownian bridges)    |
 | Toasts     | sonner                                                            |
 
@@ -133,6 +135,16 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 - `⌘K` / `Ctrl+K` command-palette search across every instrument
 - Multi-tab sync — trade in one tab, watch the others update
 
+**Accounts (optional — needs the Supabase env vars)**
+
+- Email + password sign-up and sign-in on `/signup` and `/login`, with friendly error copy
+- `/app/*` is protected: signed-out visitors are bounced to `/login?next=…` and returned afterwards
+- Your watchlist, positions, orders, cash and activity persist in Postgres and follow you to any
+  device; a live **Sync** indicator in the account menu reports saving / saved / failed
+- Strict per-user isolation enforced by Row Level Security (`auth.uid() = user_id`) in the database
+- **Reset account** wipes your rows server-side and re-credits the $25,000 starting cash
+- Without the env vars the app is unchanged: a local demo portfolio, open to everyone
+
 **Theming**
 
 - Light-first palette: `#f2f2f5` canvas, white cards with hairline borders and a soft shadow,
@@ -170,8 +182,10 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 - `reducer.ts` — all mutations. Fills are applied through a single `executeFill` path that updates
   cash, weighted-average cost, realised P&L and the activity ledger atomically, and voids orders
   that can no longer be satisfied
-- `provider.tsx` — context, `localStorage` persistence (key `monievest.portfolio.v1`), cross-tab
-  sync, and validated action helpers that raise toasts
+- `provider.tsx` — context, persistence (per-user `localStorage` key `monievest.portfolio.v1[:u:<id>]`),
+  Supabase hydration, cross-tab sync, and validated action helpers that raise toasts
+- `supabase-sync.ts` — the Postgres ↔ state mapping: loads a signed-in user's rows into a
+  `PortfolioState`, and writes changes back (debounced, with an append-only delta for the ledger)
 - `selectors.ts` — holdings, portfolio summary, allocation, movers, search and the replayed
   performance series
 
@@ -181,6 +195,99 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 state.cash  ===  Σ activity.amount
 Σ positions ===  Σ buy quantities − Σ sell quantities, per symbol
 ```
+
+## Accounts, sign-in & Supabase
+
+Monievest has two modes and **both are fully functional**:
+
+| Mode | When | Where data lives | `/app/*` |
+| --- | --- | --- | --- |
+| **Guest** | No Supabase env vars | `localStorage` (this browser only) | Open to everyone |
+| **Accounts** | `NEXT_PUBLIC_SUPABASE_URL` + `..._ANON_KEY` set | Postgres, one row-set per user | Sign-in required |
+
+### Set it up in five minutes
+
+1. **Create the tables.** Supabase dashboard → your project → **SQL Editor** → *New query* → paste
+   the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
+   It creates six tables, their indexes, Row Level Security policies, and the sign-up trigger.
+   The script is idempotent, so re-running it is harmless.
+2. **Copy the keys.** Dashboard → **Settings** → **API** → copy the *Project URL* and the *anon /
+   publishable* key into `.env.local`:
+
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
+   NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOi…"
+   ```
+
+3. **Restart the dev server** (`npm run dev`) so the new env is picked up.
+4. **Open `/signup`** and create an account. If *Confirm email* is enabled in
+   **Authentication → Providers → Email**, check your inbox for the verification link first;
+   disable it while testing and sign-up lands you straight in the dashboard.
+5. Done — buy a stock, reload, sign out, sign back in. It is all still there.
+
+New accounts start with **$25,000** of demo cash, credited by the `handle_new_user()` trigger
+(change the `starting_cash` value in the migration if you want a different number).
+
+### What is stored where
+
+**In Supabase (per user):** `profiles` (name, tier, account number), `portfolios` (cash, realised
+P&L), `positions`, `orders`, `activity` (the ledger), `watchlist`.
+**On the device only:** `settings` — theme, compact tables, default chart range, price engine
+toggles. Preferences should not follow you between a phone and a desktop.
+
+Writes are debounced ~0.9 s after the last change, then upserted. The ledger is append-only, so only
+new entries are sent; a **Reset account** wipes the user's rows in Postgres and re-credits the
+starting cash. `localStorage` keeps a per-user cache, which makes reloads instant and keeps the app
+usable if Supabase is briefly unreachable — the database stays the source of truth.
+
+### How isolation is enforced
+
+Not in the UI — in Postgres. Every table has `user_id uuid references auth.users(id)` and RLS
+policies of the form:
+
+```sql
+create policy "positions: read own" on public.positions
+  for select using (auth.uid() = user_id);
+```
+
+`auth.uid()` comes from the signed-in user's JWT, so a query for someone else's rows returns nothing
+even if the client tries. That is also why the **anon key is safe to ship to the browser**: it is a
+publishable key whose permissions are defined by RLS. The `service_role` key bypasses RLS entirely —
+it must never appear in this repo or in any `NEXT_PUBLIC_` variable.
+
+Route protection lives in [`src/proxy.ts`](src/proxy.ts) (Next 16's replacement for `middleware.ts`):
+it refreshes the session cookie on every `/app/*`, `/login` and `/signup` request, bounces signed-out
+visitors to `/login?next=<where-they-were-going>`, and sends signed-in visitors away from the auth
+pages. With no env vars configured the proxy is a pass-through, so guest mode is untouched.
+
+### Files
+
+```
+src/lib/supabase/config.ts     Reads NEXT_PUBLIC_SUPABASE_* (edge-safe, no deps)
+src/lib/supabase/client.ts     Browser client (session in cookies)
+src/lib/supabase/server.ts     Server client + getCurrentUser() — `server-only`
+src/lib/supabase/session.ts    Cookie refresh + route protection used by the proxy
+src/proxy.ts                   Next 16 request proxy (matcher: /app/*, /login, /signup)
+src/app/(auth)/                /login and /signup pages, layout, server actions
+src/components/auth/           The sign-in / sign-up form (useActionState)
+src/lib/store/supabase-sync.ts Row ↔ state mapping, debounced writes, reset
+supabase/migrations/0001_init.sql   Paste into the Supabase SQL Editor
+```
+
+### Troubleshooting
+
+- **Redirected to `/login` forever** — the URL/key pair is wrong or the project is paused. The
+  sign-in form reports Supabase's own error message.
+- **"Could not reach Supabase"** in Settings → *Account & sync* — check the URL and that the
+  project is active.
+- **Signed up but got no account rows** — the migration wasn't run, so the trigger doesn't exist.
+  Run it, then use **Reset account** (or sign up again) to bootstrap the rows.
+- **Email confirmation** — *Authentication → Providers → Email → Confirm email*. The app handles
+  both settings: with confirmation on, sign-up shows a "check your inbox" message instead of
+  redirecting.
+- **Deploying** — set both env vars on the host, add your production URL to
+  *Authentication → URL Configuration* (site URL + redirect URLs), and set `NEXT_PUBLIC_APP_URL`
+  so confirmation emails land on the right origin.
 
 ## Hydration strategy
 
@@ -202,6 +309,11 @@ src/
 ├── app/
 │   ├── layout.tsx              Root layout: fonts, metadata, provider stack
 │   ├── page.tsx                Marketing landing page (uses the real, live components)
+│   ├── (auth)/
+│   │   ├── layout.tsx          Split brand panel + form card
+│   │   ├── login/page.tsx      /login
+│   │   ├── signup/page.tsx     /signup
+│   │   └── actions.ts          Server actions: signIn, signUp, signOut
 │   ├── not-found.tsx           404 with suggested tickers
 │   ├── icon.svg                Monievest monogram
 │   ├── globals.css             Design tokens (light + dark), utilities, animations
@@ -216,7 +328,9 @@ src/
 │       ├── settings/page.tsx   /app/settings   Settings
 │       └── stock/[symbol]/     /app/stock/AAPL Stock detail (dynamic metadata)
 ├── components/
-│   ├── app/                    Shell: sidebar (nav + theme control), topbar, search palette
+│   ├── app/                    Shell: sidebar (nav + theme control), topbar, search palette,
+│   │                           sync indicator
+│   ├── auth/                   Sign-in / sign-up form (useActionState)
 │   ├── dashboard/              Stock rail, Portfolio Values + Statistics cards, My Stock table
 │   ├── charts/                 Price/performance/allocation charts + range selector
 │   ├── market/                 MarketProvider (quote board + limit auto-fill)
@@ -228,10 +342,12 @@ src/
 │   ├── brand.tsx               Logo + wordmark
 │   ├── mode-toggle.tsx         Light / dark / system (landing page)
 │   └── providers.tsx           Provider composition
+├── proxy.ts                    Session refresh + /app/* route protection
 └── lib/
     ├── hooks/use-mounted.ts
-    ├── market/                 types, catalog, engine, store, news
-    ├── store/                  types, seed, reducer, provider, selectors
+    ├── market/                 types, catalog, engine, store, news, providers/
+    ├── store/                  types, seed, reducer, provider, selectors, supabase-sync
+    ├── supabase/               config, browser client, server client, session
     ├── format.ts               Money, percent, share, date and P&L formatting
     └── utils.ts                cn(), seeded PRNG, gaussian, helpers
 ```
@@ -255,7 +371,9 @@ cp .env.example .env.local      # .env.local is git-ignored
 | `TWELVE_DATA_API_KEY`       | Twelve Data key                                                         | _empty_       |
 | `MARKET_DATA_BASE_URL`      | Override the provider base URL (proxies, sandboxes)                     | provider URL  |
 | `MARKET_DATA_CACHE_SECONDS` | Server-side quote cache lifetime **and** client poll interval (0–3600)  | `45`          |
-| `NEXT_PUBLIC_APP_URL`       | Absolute origin for metadata / OG URLs                                  | `localhost`   |
+| `NEXT_PUBLIC_APP_URL`       | Absolute origin for metadata / OG URLs **and** auth email redirects      | `localhost`   |
+| `NEXT_PUBLIC_SUPABASE_URL`  | Supabase project URL — enables accounts, persistence and route protection | _empty_ (guest mode) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Publishable anon key. Safe in the browser **because of RLS**          | _empty_ (guest mode) |
 
 **Key handling**
 

@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatCompactMoney, formatMoney, formatPercent, formatShares } from "@/lib/format";
 import { getInstrument } from "@/lib/market/catalog";
+import { getSupabaseEnv } from "@/lib/supabase/config";
 import { buildPerformance, allocationBy, buildHoldings, summarise, topMovers } from "@/lib/store/selectors";
 import { usePortfolio } from "@/lib/store/provider";
 import type { Range } from "@/lib/market/types";
@@ -97,6 +98,7 @@ export default function LandingPage() {
 /* -------------------------------------------------------------------------- */
 
 function SiteHeader() {
+  const accountsEnabled = getSupabaseEnv().configured;
   const [scrolled, setScrolled] = React.useState(false);
 
   React.useEffect(() => {
@@ -136,7 +138,7 @@ function SiteHeader() {
         <div className="ml-auto flex items-center gap-2">
           <ModeToggle />
           <Button asChild variant="ghost" className="hidden sm:flex">
-            <Link href="/app">Sign in</Link>
+            <Link href={accountsEnabled ? "/login" : "/app"}>Sign in</Link>
           </Button>
           <Button asChild variant="glow">
             <Link href="/app">
@@ -647,6 +649,7 @@ function ThemePreviewCard({ mode, className }: { mode: "dark" | "light"; classNa
 /* -------------------------------------------------------------------------- */
 
 function FinalCta() {
+  const accountsEnabled = getSupabaseEnv().configured;
   return (
     <section className="relative overflow-hidden py-24">
       <div className="pointer-events-none absolute inset-0 surface-grid [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black,transparent)]" />
@@ -656,8 +659,9 @@ function FinalCta() {
           Your portfolio is one click away
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-pretty text-[15px] leading-relaxed text-muted-foreground">
-          No sign-up, no card, no download. Open Monievest and start building a portfolio against a live
-          simulated market — your data stays in your browser.
+          {accountsEnabled
+            ? "Create a free account in seconds — no card, no download. Your watchlist, positions, orders and history are saved to your own private rows in Supabase and follow you to any device."
+            : "No sign-up, no card, no download. Open Monievest and start building a portfolio against a live simulated market — your data stays in your browser."}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button asChild size="xl" variant="glow">

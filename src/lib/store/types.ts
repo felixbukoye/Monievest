@@ -99,4 +99,12 @@ export type Action =
   | { type: "reset" };
 
 export const STORAGE_KEY = "monievest.portfolio.v1";
+
+/**
+ * Per-user local cache key. Signed-in users get their own slot so two accounts
+ * on one browser never overwrite each other; guests keep the original key.
+ */
+export function storageKeyFor(userId?: string | null): string {
+  return userId ? `${STORAGE_KEY}:u:${userId}` : STORAGE_KEY;
+}
 export const STATE_VERSION = 1;
