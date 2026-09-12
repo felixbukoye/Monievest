@@ -47,8 +47,17 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-      <body className="min-h-dvh antialiased">
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      // globals.css sets scroll-behavior: smooth — Next needs this to keep it
+      // working across route transitions instead of warning about it.
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
+      {/* Browser extensions (Grammarly et al.) inject attributes onto <body>
+          before React hydrates; suppress that one-level attribute warning. */}
+      <body className="min-h-dvh antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>
