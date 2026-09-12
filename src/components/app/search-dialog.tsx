@@ -9,33 +9,90 @@ import { StockAvatar } from "@/components/shared/stock-avatar";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatCompactMoney, formatPercent } from "@/lib/format";
-import { CATALOG } from "@/lib/market/catalog";
+import { CATALOG, getInstrument } from "@/lib/market/catalog";
+import { fetchLiveSearch, type LiveSearchHit } from "@/lib/market/live";
+import { buildInstrument } from "@/lib/market/providers/instrument-factory";
+import { registerInstruments } from "@/lib/market/registry";
 import { searchInstruments, topMovers } from "@/lib/store/selectors";
 import { useMarket } from "@/components/market/market-provider";
 import { usePortfolio } from "@/lib/store/provider";
 import { cn } from "@/lib/utils";
 
+const NO_HITS: LiveSearchHit[] = [];
+
 export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
-  const { quotes } = useMarket();
+  const { quotes, liveConfigured, providerLabel } = useMarket();
   const { state, toggleWatchlist } = usePortfolio();
   const [query, setQuery] = React.useState("");
   const [cursor, setCursor] = React.useState(0);
   const listRef = React.useRef<HTMLDivElement>(null);
+  // Stored with the query it belongs to so stale hits never render, and so
+  // clearing them is derived state rather than a synchronous effect update.
+  const [liveResults, setLiveResults] = React.useState<{ query: string; hits: LiveSearchHit[] }>({
+    query: "",
+    hits: [],
+  });
+
+  const trimmed = query.trim();
+  const liveHits = liveResults.query === trimmed ? liveResults.hits : NO_HITS;
+
+  // Live universe search, debounced. Hits are registered as instruments so the
+  // stock page, avatars and order ticket all recognise them immediately.
+  React.useEffect(() => {
+    if (!liveConfigured || trimmed.length === 0) return;
+
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      void fetchLiveSearch(trimmed).then((hits) => {
+        if (cancelled || hits.length === 0) return;
+        registerInstruments(
+          hits.map((hit) =>
+            buildInstrument({
+              symbol: hit.symbol,
+              name: hit.name,
+              kind: /etf|fund|trust|index/i.test(hit.type) ? "etf" : "stock",
+              industry: hit.type,
+            }),
+          ),
+        );
+        setLiveResults({ query: trimmed, hits });
+      });
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [trimmed, liveConfigured]);
 
   const results = React.useMemo(() => {
-    if (query.trim()) return searchInstruments(query, 9);
-    // Default view: watchlist first, then the day's biggest movers.
-    const watched = state.watchlist
-      .map((symbol) => CATALOG.find((instrument) => instrument.symbol === symbol))
-      .filter(Boolean)
-      .slice(0, 4);
-    const movers = topMovers(quotes).gainers
-      .map((mover) => mover.instrument)
-      .filter((instrument) => !watched.includes(instrument))
-      .slice(0, 5);
-    return [...(watched as typeof CATALOG), ...movers].slice(0, 9);
-  }, [query, state.watchlist, quotes]);
+    const local = trimmed
+      ? searchInstruments(trimmed, 9)
+      : (() => {
+          // Default view: watchlist first, then the day's biggest movers.
+          const watched = state.watchlist
+            .map((symbol) => getInstrument(symbol))
+            .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument))
+            .slice(0, 4);
+          const movers = topMovers(quotes)
+            .gainers.map((mover) => mover.instrument)
+            .filter((instrument) => !watched.includes(instrument))
+            .slice(0, 5);
+          return [...watched, ...movers].slice(0, 9);
+        })();
+
+    if (liveHits.length === 0) return local;
+
+    const seen = new Set(local.map((instrument) => instrument.symbol));
+    const extra = liveHits
+      .filter((hit) => !seen.has(hit.symbol))
+      .map((hit) => getInstrument(hit.symbol))
+      .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument))
+      .slice(0, 6);
+
+    return [...local, ...extra].slice(0, 12);
+  }, [trimmed, liveHits, state.watchlist, quotes]);
 
   // Resetting on open / on query change is derived state, so it happens during
   // render rather than in an effect (avoids a cascading second render).
@@ -161,7 +218,13 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-2.5 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <TrendingUpIcon className="size-3.5" />
-            {CATALOG.length} simulated instruments
+            {liveConfigured ? (
+              <>
+                {CATALOG.length} catalogued + the live {providerLabel} universe
+              </>
+            ) : (
+              <>{CATALOG.length} simulated instruments</>
+            )}
           </span>
           <span className="hidden items-center gap-1.5 sm:flex">
             <CornerDownLeftIcon className="size-3.5" />

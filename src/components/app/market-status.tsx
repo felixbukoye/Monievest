@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function MarketStatus({ className, showLabel = true }: { className?: string; showLabel?: boolean }) {
-  const { session, ready, lastTickAt } = useMarket();
+  const { session, ready, lastTickAt, source, providerLabel, liveUpdatedAt, liveError } = useMarket();
   const [now, setNow] = React.useState<string>("");
 
   React.useEffect(() => {
@@ -19,13 +19,24 @@ export function MarketStatus({ className, showLabel = true }: { className?: stri
     return () => window.clearInterval(id);
   }, []);
 
+  const live = source === "live";
+  const stale = live && Boolean(liveError);
+
+  const title = !ready
+    ? "Booting market data"
+    : live
+      ? stale
+        ? `Live prices via ${providerLabel} — last update failed: ${liveError}`
+        : `Real prices via ${providerLabel} · updated ${new Date(liveUpdatedAt).toLocaleTimeString()}`
+      : `Simulated prices · last tick ${new Date(lastTickAt).toLocaleTimeString()}`;
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-full border border-border/80 bg-muted/50 py-1 pr-3 pl-2.5",
+        "flex items-center gap-2 rounded-full border border-border/80 bg-muted/50 py-1 pr-2 pl-2.5",
         className,
       )}
-      title={ready ? `Last simulated tick ${new Date(lastTickAt).toLocaleTimeString()}` : "Booting market simulator"}
+      title={title}
     >
       <span className="relative flex size-2">
         <span
@@ -36,13 +47,39 @@ export function MarketStatus({ className, showLabel = true }: { className?: stri
         />
         <span className={cn("relative inline-flex size-2 rounded-full", session.open ? "bg-gain" : "bg-muted-foreground")} />
       </span>
+
       {showLabel && (
         <span className="text-[11.5px] font-medium text-muted-foreground">
           {session.label}
           <span className="tnum ml-1.5 hidden text-foreground/70 lg:inline">{now} ET</span>
         </span>
       )}
+
+      <span
+        className={cn(
+          "rounded-full px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase",
+          stale
+            ? "bg-warning/15 text-warning"
+            : live
+              ? "bg-primary/12 text-primary"
+              : "bg-muted text-muted-foreground",
+        )}
+      >
+        {stale ? "stale" : live ? "live" : "sim"}
+      </span>
     </div>
+  );
+}
+
+export function LiveSourceBadge({ className }: { className?: string }) {
+  const { source, providerLabel, liveWarning } = useMarket();
+  if (source !== "live") return null;
+
+  return (
+    <Badge variant="muted" className={cn("gap-1 border-primary/25 bg-primary/10 text-primary", className)} title={liveWarning ?? `Real prices via ${providerLabel}`}>
+      <span className="size-1.5 rounded-full bg-primary" />
+      {providerLabel}
+    </Badge>
   );
 }
 

@@ -1,4 +1,4 @@
-import { CATALOG, getInstrument } from "@/lib/market/catalog";
+import { allInstruments, getInstrument } from "@/lib/market/catalog";
 import { getHistory } from "@/lib/market/engine";
 import type { Instrument, Quote, Range } from "@/lib/market/types";
 import type { PortfolioState } from "./types";
@@ -255,14 +255,18 @@ export function topMovers(quotes: Record<string, Quote>): {
   losers: Mover[];
   active: Mover[];
 } {
-  const rows: Mover[] = CATALOG.map((instrument) => ({ instrument, quote: quotes[instrument.symbol]! })).filter(
-    (row) => row.quote,
-  );
+  const rows: Mover[] = allInstruments()
+    .map((instrument) => ({ instrument, quote: quotes[instrument.symbol]! }))
+    .filter((row) => row.quote);
 
   const gainers = [...rows].sort((a, b) => b.quote.changePct - a.quote.changePct).slice(0, 6);
   const losers = [...rows].sort((a, b) => a.quote.changePct - b.quote.changePct).slice(0, 6);
   const active = [...rows]
-    .sort((a, b) => (b.quote.volume * b.quote.price) / b.instrument.marketCap - (a.quote.volume * a.quote.price) / a.instrument.marketCap)
+    .sort(
+      (a, b) =>
+        (b.quote.volume * b.quote.price) / Math.max(b.instrument.marketCap, 1) -
+        (a.quote.volume * a.quote.price) / Math.max(a.instrument.marketCap, 1),
+    )
     .slice(0, 6);
 
   return { gainers, losers, active };
@@ -270,8 +274,9 @@ export function topMovers(quotes: Record<string, Quote>): {
 
 export function searchInstruments(query: string, limit = 8): Instrument[] {
   const q = query.trim().toLowerCase();
-  if (!q) return CATALOG.slice(0, limit);
-  const scored = CATALOG.map((instrument) => {
+  const universe = allInstruments();
+  if (!q) return universe.slice(0, limit);
+  const scored = universe.map((instrument) => {
     const symbol = instrument.symbol.toLowerCase();
     const name = instrument.name.toLowerCase();
     let score = 0;

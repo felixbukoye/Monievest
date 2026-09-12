@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { INSTRUMENTS_BY_SYMBOL } from "@/lib/market/catalog";
 import { buildIndices, marketSession, type IndexQuote } from "@/lib/market/engine";
+import { fetchLiveConfig, SIMULATED_CONFIG, type LiveConfig } from "@/lib/market/live";
 import { marketStore, useMarketSnapshot } from "@/lib/market/store";
 import type { Quote } from "@/lib/market/types";
 import { usePortfolio } from "@/lib/store/provider";
@@ -17,6 +18,16 @@ type MarketContextValue = {
   ready: boolean;
   session: ReturnType<typeof marketSession>;
   lastTickAt: number;
+  /** "live" once a provider quote has landed on the board, else "simulated". */
+  source: "simulated" | "live";
+  /** Provider id from `/api/market/config` (e.g. "finnhub" or "simulated"). */
+  provider: string;
+  providerLabel: string;
+  /** True when a key is configured, even before the first poll returns. */
+  liveConfigured: boolean;
+  liveUpdatedAt: number;
+  liveError: string | null;
+  liveWarning: string | null;
   quote: (symbol: string) => Quote | undefined;
   price: (symbol: string) => number | null;
   changePct: (symbol: string) => number | null;
@@ -29,20 +40,53 @@ const MarketContext = createContext<MarketContextValue | null>(null);
 export function MarketProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = usePortfolio();
   const snapshot = useMarketSnapshot();
-  const { quotes, ready, lastTickAt } = snapshot;
+  const { quotes, ready, lastTickAt, source, provider, liveUpdatedAt, liveError } = snapshot;
 
   const live = state.settings.livePrices;
   const autoFill = state.settings.autoFillLimits;
+  const [config, setConfig] = useState<LiveConfig>(SIMULATED_CONFIG);
+
+  // Ask the server whether a provider key is configured (the key itself never
+  // reaches the browser).
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLiveConfig().then((resolved) => {
+      if (!cancelled) setConfig(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    marketStore.configureProvider({
+      enabled: config.live && live,
+      provider: config.provider,
+      pollMs: Math.max(30, config.cacheSeconds) * 1000,
+    });
+  }, [config.live, config.provider, config.cacheSeconds, live]);
 
   // Tell the shared store whether it should keep ticking.
   useEffect(() => {
     marketStore.setLive(live);
   }, [live]);
 
+  // Open positions and the watchlist are polled first — they are what the user
+  // is actually looking at. Keyed on a primitive so the effect only re-runs
+  // when the symbol list really changes.
+  const positions = state.positions;
+  const watchlist = state.watchlist;
+  const priorityKey = `${positions.map((position) => position.symbol).join(",")}|${watchlist.join(",")}`;
+
+  useEffect(() => {
+    const symbols = priorityKey.split("|").flatMap((group) => (group ? group.split(",") : []));
+    marketStore.setPrioritySymbols(symbols);
+  }, [priorityKey]);
+
   // Derived from lastTickAt so the value is identical on server and client.
   const session = ready ? marketSession(new Date(lastTickAt)) : SESSION_PLACEHOLDER;
 
-  // Execute resting limit orders when the simulated price crosses them.
+  // Execute resting limit orders when the price crosses them.
   const orders = state.orders;
   useEffect(() => {
     if (!ready || !autoFill) return;
@@ -74,8 +118,42 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<MarketContextValue>(
-    () => ({ quotes, indices, ready, session, lastTickAt, quote, price, changePct, step }),
-    [quotes, indices, ready, session, lastTickAt, quote, price, changePct, step],
+    () => ({
+      quotes,
+      indices,
+      ready,
+      session,
+      lastTickAt,
+      source,
+      provider,
+      providerLabel: config.label,
+      liveConfigured: config.live,
+      liveUpdatedAt,
+      liveError,
+      liveWarning: config.warning,
+      quote,
+      price,
+      changePct,
+      step,
+    }),
+    [
+      quotes,
+      indices,
+      ready,
+      session,
+      lastTickAt,
+      source,
+      provider,
+      config.label,
+      config.live,
+      config.warning,
+      liveUpdatedAt,
+      liveError,
+      quote,
+      price,
+      changePct,
+      step,
+    ],
   );
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;

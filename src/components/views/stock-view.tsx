@@ -21,7 +21,7 @@ import {
 import * as React from "react";
 
 import { useTrade } from "@/components/app/app-shell";
-import { MarketStatus } from "@/components/app/market-status";
+import { LiveSourceBadge, MarketStatus } from "@/components/app/market-status";
 import { PriceChart, RangeSelector, type ChartStyle } from "@/components/charts/price-chart";
 import { ChangeChip, LivePrice } from "@/components/shared/prices";
 import { Sparkline } from "@/components/shared/sparkline";
@@ -46,22 +46,42 @@ import {
   formatVolume,
   relativeTime,
 } from "@/lib/format";
-import { CATALOG, getInstrument } from "@/lib/market/catalog";
+import { allInstruments, getInstrument } from "@/lib/market/catalog";
 import { getNews, sentimentLabel } from "@/lib/market/news";
+import { registerInstrument } from "@/lib/market/registry";
+import { marketStore } from "@/lib/market/store";
+import type { Instrument } from "@/lib/market/types";
+import { useLiveHistory } from "@/lib/market/use-live-history";
 import { RANGES, type Range } from "@/lib/market/types";
 import { usePortfolio } from "@/lib/store/provider";
 import { cn } from "@/lib/utils";
 import { useMarket } from "@/components/market/market-provider";
 
-export function StockView({ symbol }: { symbol: string }) {
-  const instrument = getInstrument(symbol);
-  const { quotes, ready } = useMarket();
+export function StockView({ symbol, instrument: resolved }: { symbol: string; instrument?: Instrument }) {
+  // Catalogued instruments carry rich hand-written reference data; anything
+  // else may have been resolved server-side from the live provider.
+  const instrument = getInstrument(symbol) ?? resolved;
+  const { quotes, ready, source } = useMarket();
   const { state, hydrated, toggleWatchlist } = usePortfolio();
   const { openTrade } = useTrade();
 
   const [range, setRange] = React.useState<Range>(state.settings.defaultRange as Range);
   const [style, setStyle] = React.useState<ChartStyle>("area");
   const [showVolume, setShowVolume] = React.useState(true);
+
+  // Make a server-resolved instrument known to the rest of the client app
+  // (avatars, order ticket, search, allocation maths).
+  React.useEffect(() => {
+    if (resolved) registerInstrument(resolved);
+  }, [resolved]);
+
+  // Ensure this symbol is polled even when it is outside the curated catalog.
+  React.useEffect(() => {
+    marketStore.trackSymbol(symbol);
+  }, [symbol]);
+
+  // Swap the chart's simulated series for real candles when a key is configured.
+  useLiveHistory(instrument?.symbol, range, source === "live");
 
   const quote = instrument ? quotes[instrument.symbol] : undefined;
   const position = state.positions.find((p) => p.symbol === instrument?.symbol);
@@ -76,7 +96,9 @@ export function StockView({ symbol }: { symbol: string }) {
   const peers = React.useMemo(() => {
     const found = getInstrument(symbol);
     if (!found) return [];
-    return CATALOG.filter((item) => item.sector === found.sector && item.symbol !== found.symbol).slice(0, 5);
+    return allInstruments()
+      .filter((item) => item.sector === found.sector && item.symbol !== found.symbol)
+      .slice(0, 5);
   }, [symbol]);
 
   // Guard placed after every hook so the hook order stays stable.
@@ -183,7 +205,7 @@ export function StockView({ symbol }: { symbol: string }) {
                   {tag}
                 </Badge>
               ))}
-              <SimulatedBadge />
+              {source === "live" ? <LiveSourceBadge /> : <SimulatedBadge />}
             </div>
           </div>
         </div>

@@ -146,7 +146,7 @@ export function getMarketConfig(): MarketConfig {
 
 function readCacheSeconds(): number {
   const parsed = Number.parseInt(process.env.MARKET_DATA_CACHE_SECONDS ?? "", 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return 30;
+  if (!Number.isFinite(parsed) || parsed < 0) return 45;
   return Math.min(parsed, 3600);
 }
 

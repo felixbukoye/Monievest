@@ -254,7 +254,7 @@ cp .env.example .env.local      # .env.local is git-ignored
 | `ALPHA_VANTAGE_API_KEY`     | Alpha Vantage key                                                       | _empty_       |
 | `TWELVE_DATA_API_KEY`       | Twelve Data key                                                         | _empty_       |
 | `MARKET_DATA_BASE_URL`      | Override the provider base URL (proxies, sandboxes)                     | provider URL  |
-| `MARKET_DATA_CACHE_SECONDS` | Server-side quote cache lifetime (0–3600)                               | `30`          |
+| `MARKET_DATA_CACHE_SECONDS` | Server-side quote cache lifetime **and** client poll interval (0–3600)  | `45`          |
 | `NEXT_PUBLIC_APP_URL`       | Absolute origin for metadata / OG URLs                                  | `localhost`   |
 
 **Key handling**
@@ -268,6 +268,46 @@ cp .env.example .env.local      # .env.local is git-ignored
   named but its key is blank, it returns `live: false`, falls back to the simulator and reports the
   reason in `warning` instead of rendering empty charts.
 - The dev server reloads automatically when an env file changes — no rebuild needed.
+
+## Live market data (Finnhub)
+
+Set `MARKET_DATA_PROVIDER="finnhub"` plus `FINNHUB_API_KEY` and the app switches from the local
+simulator to real prices. The key stays on the server: the browser only ever calls our own route
+handlers.
+
+| Route                    | Purpose                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `GET /api/market/config` | Tells the client whether live data is on (never returns the key)          |
+| `POST /api/market/quotes`| Real quotes for up to 40 symbols per call                                 |
+| `GET /api/market/candles`| Real history, with `source: "finnhub" \| "simulated" \| "unavailable"`     |
+| `GET /api/market/search` | Symbol search across the provider's whole listed universe                 |
+
+**What goes live**
+
+- Prices for your positions, watchlist and the catalogued instruments, polled on an interval
+  (`MARKET_DATA_CACHE_SECONDS`, default 45s) and merged over the board
+- Search beyond the 44 curated instruments — the full US-listed universe
+- Deep links to any resolved ticker (`/app/stock/RIVN`), resolved server-side from quote + profile
+- Real candles on the stock page when your plan permits them
+
+**What still falls back to the simulator (deliberately)**
+
+- Candles when the key is premium-gated — `/stock/candle` answers `no_permission` on many free
+  tiers, so the capability is probed once, switched off, and history is served locally with
+  `source: "simulated"`
+- Any symbol the provider does not cover, plus `volume` (Finnhub's `/quote` does not return it)
+- Portfolio analytics that replay history, until real candles for those symbols are cached
+- Simulated news
+
+**Staying inside the free tier.** Finnhub has no batch quote endpoint, so each symbol costs one
+call. The server budgets 50 calls/minute, queues briefly, then serves the cached value; the client
+caps each poll at 40 symbols, prioritising open positions and the watchlist. At the default 45s
+interval that is ≈53 calls/minute — inside the limit. Turning off **Live prices** in Settings stops
+provider polling entirely.
+
+**Knowing which mode you are in.** The pill in the topbar reads `LIVE` (real prices, with the
+provider name and last update on hover), `STALE` (a poll failed) or `SIM` (simulator). The stock
+page swaps its "Simulated data" badge for the provider badge in live mode.
 
 ## Swapping in real market data
 

@@ -65,6 +65,23 @@ export type Quote = {
   intraday: { t: number; p: number }[];
 };
 
+/**
+ * Slim quote as returned by the server's provider proxy. Merged into a full
+ * `Quote` on the client by `mergeLiveQuote()` (see `src/lib/market/live.ts`).
+ */
+export type LiveQuote = {
+  symbol: string;
+  price: number;
+  open: number;
+  prevClose: number;
+  change: number;
+  changePct: number;
+  dayHigh: number;
+  dayLow: number;
+  /** Provider timestamp, ms since epoch. */
+  updatedAt: number;
+};
+
 export type Candle = {
   t: number;
   o: number;

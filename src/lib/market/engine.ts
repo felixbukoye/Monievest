@@ -1,5 +1,6 @@
 import { gaussian, hashString, mulberry32, clamp } from "@/lib/utils";
-import { CATALOG, INSTRUMENTS_BY_SYMBOL } from "./catalog";
+import { CATALOG, INSTRUMENTS_BY_SYMBOL, getInstrument } from "./catalog";
+import { getLiveCandles } from "./live-history";
 import type { Candle, Instrument, Quote, Range } from "./types";
 
 /**
@@ -115,6 +116,10 @@ const historyCache = new Map<string, Candle[]>();
 
 /** Deterministic historical candles for an instrument over a given range. */
 export function getHistory(instrument: Instrument, range: Range, now = Date.now()): Candle[] {
+  // Real provider history takes precedence over the simulated series.
+  const live = getLiveCandles(instrument.symbol, range);
+  if (live && live.length > 1) return live;
+
   const key = `${instrument.symbol}:${range}:${now - (now % 3_600_000)}`;
   const cached = historyCache.get(key);
   if (cached) return cached;
@@ -194,7 +199,8 @@ export function getHistory(instrument: Instrument, range: Range, now = Date.now(
 }
 
 export function getHistoryBySymbol(symbol: string, range: Range, now = Date.now()): Candle[] {
-  const instrument = INSTRUMENTS_BY_SYMBOL[symbol.toUpperCase()];
+  const key = symbol.toUpperCase();
+  const instrument = INSTRUMENTS_BY_SYMBOL[key] ?? getInstrument(key);
   if (!instrument) return [];
   return getHistory(instrument, range, now);
 }

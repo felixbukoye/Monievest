@@ -1,3 +1,4 @@
+import { dynamicInstruments, getDynamicInstrument } from "./registry";
 import type { Instrument } from "./types";
 
 /**
@@ -1251,8 +1252,15 @@ export const SECTORS: Instrument["sector"][] = Array.from(
   new Set(CATALOG.map((instrument) => instrument.sector)),
 ).sort();
 
+/** Every tradable instrument: the curated catalog plus anything resolved live. */
+export function allInstruments(): Instrument[] {
+  const dynamic = dynamicInstruments();
+  return dynamic.length === 0 ? CATALOG : [...CATALOG, ...dynamic];
+}
+
 export function getInstrument(symbol: string): Instrument | undefined {
-  return INSTRUMENTS_BY_SYMBOL[symbol.toUpperCase()];
+  const key = symbol?.toUpperCase();
+  return INSTRUMENTS_BY_SYMBOL[key] ?? getDynamicInstrument(key);
 }
 
 export function getInstrumentOrThrow(symbol: string): Instrument {
