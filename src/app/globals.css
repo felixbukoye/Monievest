@@ -1,0 +1,375 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ------------------------------------------------------------------ *
+ * Monievest design tokens
+ * Soft, rounded, violet-accented fintech (per product reference):
+ * light-grey canvas, white cards with generous radii, pink statistics
+ * area chart, emerald gains / rose losses. Full dark theme included.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --radius: 1.25rem;
+
+  --background: #f2f2f5;
+  --foreground: #131316;
+
+  --card: #ffffff;
+  --card-foreground: #131316;
+
+  --popover: #ffffff;
+  --popover-foreground: #131316;
+
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f1f1f4;
+  --secondary-foreground: #3f3f46;
+
+  --muted: #f4f4f6;
+  --muted-foreground: #71717a;
+
+  --accent: #f3eeff;
+  --accent-foreground: #6d28d9;
+
+  --destructive: #f43f5e;
+  --destructive-foreground: #ffffff;
+
+  --success: #10b981;
+  --success-foreground: #ffffff;
+
+  --warning: #f59e0b;
+  --warning-foreground: #ffffff;
+
+  --border: #e9e9ee;
+  --input: #e3e3e9;
+  --ring: #8b5cf6;
+
+  --sidebar: #fbfbfd;
+  --sidebar-foreground: #131316;
+  --sidebar-accent: #ededf1;
+  --sidebar-border: #ececf1;
+
+  /* semantic market colours */
+  --gain: #10b981;
+  --gain-soft: #10b98114;
+  --loss: #f43f5e;
+  --loss-soft: #f43f5e14;
+
+  /* chart ramp */
+  --chart-1: #8b5cf6;
+  --chart-2: #0ea5e9;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #ec4899;
+  /* soft rose used by the "Statistics" area chart, per reference */
+  --chart-stat: #fb7185;
+  --chart-stat-soft: #fda4af;
+
+  --grid-line: #13131609;
+  --shadow-card: 0 1px 2px rgb(19 19 22 / 0.04), 0 10px 30px -18px rgb(19 19 22 / 0.14);
+  --shadow-glow: 0 14px 40px -18px #8b5cf666;
+}
+
+.dark {
+  --background: #0c0c0f;
+  --foreground: #f4f4f5;
+
+  --card: #16161b;
+  --card-foreground: #f4f4f5;
+
+  --popover: #1b1b21;
+  --popover-foreground: #f4f4f5;
+
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+
+  --secondary: #202027;
+  --secondary-foreground: #d4d4d8;
+
+  --muted: #1c1c22;
+  --muted-foreground: #9d9da8;
+
+  --accent: #251b3d;
+  --accent-foreground: #c4b5fd;
+
+  --destructive: #fb7185;
+  --destructive-foreground: #1a0409;
+
+  --success: #34d399;
+  --success-foreground: #03150e;
+
+  --warning: #fbbf24;
+  --warning-foreground: #1a1204;
+
+  --border: #26262e;
+  --input: #2e2e37;
+  --ring: #a78bfa;
+
+  --sidebar: #101014;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-accent: #1e1e25;
+  --sidebar-border: #1e1e25;
+
+  --gain: #34d399;
+  --gain-soft: #34d3991f;
+  --loss: #fb7185;
+  --loss-soft: #fb71851f;
+
+  --chart-1: #a78bfa;
+  --chart-2: #38bdf8;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --chart-stat: #fb7185;
+  --chart-stat-soft: #f472b6;
+
+  --grid-line: #ffffff0d;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 14px 40px -22px rgb(0 0 0 / 0.7);
+  --shadow-glow: 0 18px 50px -22px #8b5cf6aa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-gain: var(--gain);
+  --color-gain-soft: var(--gain-soft);
+  --color-gain-foreground: var(--success-foreground);
+  --color-loss: var(--loss);
+  --color-loss-soft: var(--loss-soft);
+  --color-loss-foreground: var(--destructive-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-stat: var(--chart-stat);
+  --color-chart-stat-soft: var(--chart-stat-soft);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: var(--radius);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 30%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Numeric alignment matters a lot in a trading UI */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--ring) 65%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Scrollbars — hidden for the horizontal stock rail, thin elsewhere
+ * ------------------------------------------------------------------ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  background-clip: content-box;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Decorative helpers
+ * ------------------------------------------------------------------ */
+@utility panel {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+@utility surface-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@utility glow-ring {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 26%, transparent),
+    var(--shadow-glow);
+}
+
+/* The reference's cards are white with a hairline border + very soft lift. */
+@utility card-soft {
+  box-shadow: var(--shadow-card);
+}
+
+/* ------------------------------------------------------------------ *
+ * Animations
+ * ------------------------------------------------------------------ */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes flash-up {
+  from {
+    background-color: var(--gain-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down {
+  from {
+    background-color: var(--loss-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 46s linear infinite;
+}
+.ticker-tape:hover .animate-ticker {
+  animation-play-state: paused;
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+.animate-rise {
+  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.flash-up {
+  animation: flash-up 0.7s ease-out;
+}
+.flash-down {
+  animation: flash-down 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker,
+  .animate-pulse-dot,
+  .animate-rise,
+  .flash-up,
+  .flash-down {
+    animation: none !important;
+  }
+}
+
+/* Recharts theming */
+.recharts-cartesian-axis-tick text {
+  fill: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.recharts-cartesian-grid line {
+  stroke: var(--border);
+  stroke-opacity: 0.7;
+}
+.recharts-surface {
+  overflow: visible;
+}
