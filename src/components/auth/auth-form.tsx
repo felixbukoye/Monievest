@@ -11,7 +11,8 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
-import { emptyAuthState, signInAction, signUpAction, type AuthFormState } from "@/app/(auth)/actions";
+import { signInAction, signUpAction } from "@/app/(auth)/actions";
+import { emptyAuthState, type AuthFormState } from "@/app/(auth)/form-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
