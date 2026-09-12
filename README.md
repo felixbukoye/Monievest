@@ -285,6 +285,10 @@ supabase/migrations/0001_init.sql   Paste into the Supabase SQL Editor
 - **Email confirmation** — *Authentication → Providers → Email → Confirm email*. The app handles
   both settings: with confirmation on, sign-up shows a "check your inbox" message instead of
   redirecting.
+- **Confirmation emails link to the wrong place** — Supabase only honours a redirect URL that is
+  listed in *Authentication → URL Configuration → Redirect URLs*. Add every host you browse from
+  (localhost, your preview URL, your production domain). The app sends the request's own `Origin`,
+  so proxied previews work once that origin is allow-listed.
 - **Deploying** — set both env vars on the host, add your production URL to
   *Authentication → URL Configuration* (site URL + redirect URLs), and set `NEXT_PUBLIC_APP_URL`
   so confirmation emails land on the right origin.

@@ -23,11 +23,21 @@ function safeNext(value: FormDataEntryValue | null): string {
   return raw;
 }
 
+/**
+ * Where a confirmation email should send the user back to.
+ *
+ * The request's own Origin wins, so a deployment behind a proxy (or a dev
+ * preview on a different host) links to the URL the person is actually using.
+ * `NEXT_PUBLIC_APP_URL` is the fallback for requests with no Origin header.
+ * Whatever we send must also be listed in Supabase → Authentication → URL
+ * Configuration, otherwise Supabase falls back to the project's Site URL.
+ */
 async function siteOrigin(): Promise<string> {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   const headerStore = await headers();
-  const origin = headerStore.get("origin") ?? headerStore.get("referer") ?? "";
-  return origin.replace(/\/$/, "");
+  const fromRequest = headerStore.get("origin") ?? headerStore.get("referer") ?? "";
+  if (fromRequest) return fromRequest.replace(/\/$/, "");
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  return "";
 }
 
 /** Turn Supabase's developer-facing messages into something a person can act on. */
