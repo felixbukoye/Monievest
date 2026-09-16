@@ -10,6 +10,7 @@ import { SyncStatus } from "@/components/app/sync-status";
 import { Wordmark } from "@/components/brand";
 import { useMarket } from "@/components/market/market-provider";
 import { GeneratedAvatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +18,7 @@ import { useMounted } from "@/lib/hooks/use-mounted";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
 import { summarise } from "@/lib/store/selectors";
-import { APP_GROUPS } from "./nav";
+import { ADMIN_GROUP, APP_GROUPS } from "./nav";
 import { cn } from "@/lib/utils";
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -81,6 +82,8 @@ export function SidebarContent({
   const { quotes } = useMarket();
   const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
   const pending = state.orders.filter((order) => order.status === "pending").length;
+  const isAdmin = auth.role === "admin";
+  const navGroups = isAdmin ? [...APP_GROUPS, ADMIN_GROUP] : APP_GROUPS;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
@@ -100,7 +103,7 @@ export function SidebarContent({
         New trade
       </Button>
 
-      {APP_GROUPS.map((group) => (
+      {navGroups.map((group) => (
         <nav key={group.label} className="flex flex-col gap-1" aria-label={group.label}>
           <p className="px-3 pb-1 text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
             {group.label}
@@ -196,8 +199,13 @@ export function SidebarContent({
                 </>
               ) : (
                 <>
-                  <span className="block truncate text-[12.5px] font-semibold">
-                    {signedIn ? state.account.name : "Guest"}
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[12.5px] font-semibold">
+                      {signedIn ? state.account.name : "Guest"}
+                    </span>
+                    {isAdmin ? (
+                      <Badge className="px-1.5 py-0 text-[9.5px] uppercase">Admin</Badge>
+                    ) : null}
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground">
                     {signedIn ? (auth.email ?? state.account.email) : "Not signed in"}

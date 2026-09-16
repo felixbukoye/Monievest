@@ -2,7 +2,9 @@ import {
   BriefcaseBusinessIcon,
   CandlestickChartIcon,
   LayoutDashboardIcon,
+  LifeBuoyIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   StarIcon,
   ReceiptTextIcon,
   WalletIcon,
@@ -71,9 +73,29 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: SettingsIcon,
         description: "Theme, trading preferences and demo data",
       },
+      {
+        href: "/app/feedback",
+        label: "Support",
+        icon: LifeBuoyIcon,
+        description: "Report a bug or send feedback",
+      },
     ],
   },
 ];
+
+/** Shown only to accounts with `profiles.role = 'admin'`. */
+export const ADMIN_GROUP: NavGroup = {
+  label: "Administration",
+  items: [
+    {
+      href: "/app/admin",
+      label: "Admin dashboard",
+      icon: ShieldCheckIcon,
+      description: "Users, trades, stocks, analytics and support",
+      exact: true,
+    },
+  ],
+};
 
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
 export const APP_GROUPS = NAV_GROUPS;

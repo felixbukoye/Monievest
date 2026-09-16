@@ -143,7 +143,23 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
   device; a live **Sync** indicator in the account menu reports saving / saved / failed
 - Strict per-user isolation enforced by Row Level Security (`auth.uid() = user_id`) in the database
 - **Reset account** wipes your rows server-side and re-credits the $25,000 starting cash
+- **Support** page (`/app/feedback`) — send bug reports and feedback, see team replies
 - Without the env vars the app is unchanged: a local demo portfolio, open to everyone
+
+**Admin (optional — needs Supabase + the admin role)**
+
+- Accounts with `profiles.role = 'admin'` land on the **admin dashboard** instead of their personal
+  one, and carry an **Admin** badge in the chrome
+- User management: name / email / sign-up date / wallet balance per user, plus active / disabled
+  status to block a spam or abusive account
+- Demo trading activity: every order across all users, and portfolio value per user with anomaly
+  flags (negative balances and other impossible data)
+- Stock universe: add / edit / remove tradable demo stocks, disable built-ins, and check where
+  price data is coming from and whether it's updating
+- Analytics: total sign-ups, total demo trades, most-traded stocks and a 14-day sign-up chart
+- Support inbox: reply to feedback and bug reports from the in-app Support page
+- Promoted via one SQL statement in Supabase (see [Admin dashboard](#admin-dashboard)); every admin
+  query is locked down by admin-only RLS policies in the database
 
 **Theming**
 
@@ -210,7 +226,10 @@ Monievest has two modes and **both are fully functional**:
 1. **Create the tables.** Supabase dashboard → your project → **SQL Editor** → *New query* → paste
    the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
    It creates six tables, their indexes, Row Level Security policies, and the sign-up trigger.
-   The script is idempotent, so re-running it is harmless.
+   Then run [`supabase/migrations/0002_admin.sql`](supabase/migrations/0002_admin.sql) the same
+   way — it adds the admin role, account status, the feedback table and the admin stock universe
+   (see [Admin dashboard](#admin-dashboard)). Both scripts are idempotent, so re-running them is
+   harmless.
 2. **Copy the keys.** Dashboard → **Settings** → **API** → copy the *Project URL* and the *anon /
    publishable* key into `.env.local`:
 
@@ -272,6 +291,7 @@ src/app/(auth)/                /login and /signup pages, layout, server actions
 src/components/auth/           The sign-in / sign-up form (useActionState)
 src/lib/store/supabase-sync.ts Row ↔ state mapping, debounced writes, reset
 supabase/migrations/0001_init.sql   Paste into the Supabase SQL Editor
+supabase/migrations/0002_admin.sql  Admin role, status, feedback, demo stocks
 ```
 
 ### Troubleshooting
@@ -292,6 +312,71 @@ supabase/migrations/0001_init.sql   Paste into the Supabase SQL Editor
 - **Deploying** — set both env vars on the host, add your production URL to
   *Authentication → URL Configuration* (site URL + redirect URLs), and set `NEXT_PUBLIC_APP_URL`
   so confirmation emails land on the right origin.
+
+## Admin dashboard
+
+One or more accounts can carry the **admin** role. When an admin signs in, `/app` lands them on
+the **admin dashboard** (`/app/admin`) instead of the personal dashboard; every other user keeps
+seeing their own portfolio exactly as before.
+
+**What's inside** — five tabs:
+
+- **Overview (analytics)** — total sign-ups (plus a 14-day chart), total demo trades placed,
+  most-traded stocks, open feedback and disabled-account counts.
+- **Users** — every account with name, email, sign-up date, demo wallet balance and status.
+  Disable a spam/abusive account with one click — the user is signed out and blocked; re-enable
+  them just as easily.
+- **Trading** — every order any user placed (stock, side, qty, price, status, time) and the
+  portfolio value per user, with automatic flags for suspicious data (negative cash, negative
+  portfolio value, cash over $1M, negative positions).
+- **Stocks & data** — the tradable demo universe: add new stocks, edit or remove them, or disable
+  built-in catalog stocks (changes reach every user on their next page load), plus a live health
+  panel for the price source (simulator vs. live provider, last tick, provider errors).
+- **Support** — the inbox for messages sent from the **Support** page (`/app/feedback`); reply,
+  close or delete. Replies appear on the user's Support page.
+
+**Where it lives**
+
+```
+src/app/app/admin/page.tsx         Route guard + entry point
+src/components/views/admin-view.tsx Tab shell (Overview/Users/Trading/Stocks/Support)
+src/components/admin/              One component per tab
+src/lib/admin/data.ts              Admin queries & mutations (browser client + RLS)
+src/app/app/feedback/page.tsx      The user-facing feedback form
+src/app/api/stocks/route.ts        Publishes the admin stock universe to clients
+supabase/migrations/0002_admin.sql Role, status, feedback, demo_stocks, admin RLS
+```
+
+**How access control works.** The role is a column: `profiles.role = 'admin'`. The app's route
+guard (`requireAdminProfile()`) redirects non-admins, and — more importantly — every admin query is
+protected a second time in Postgres by policies that call a `public.is_admin()` function, so a
+hand-edited client can never read cross-user data. A trigger stops ordinary users from promoting
+themselves via the profile update path, and disabled accounts are bounced by the `/app` layout
+before anything renders.
+
+### Making someone an admin
+
+There is deliberately no in-app "promote" button — admin is granted in Supabase. In the Supabase
+dashboard → **SQL Editor**, run one of:
+
+```sql
+-- by user id (Authentication → Users → copy the UID)
+update public.profiles
+   set role = 'admin'
+ where id = 'PASTE-USER-ID-HERE';
+
+-- or by email
+update public.profiles p
+   set role = 'admin'
+  from auth.users u
+ where p.id = u.id
+   and lower(u.email) = lower('you@example.com');
+```
+
+Check it worked: `select display_name, email, role, status from public.profiles;`
+Demote the same way with `set role = 'user'`. The change takes effect on the person's next page
+load — they get the **Admin** badge, an *Administration* section in the sidebar, and land on the
+admin dashboard instead of their portfolio.
 
 ## Hydration strategy
 
