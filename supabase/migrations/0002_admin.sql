@@ -71,7 +71,12 @@ $$;
 -- ------------------------------------------------------- guard admin fields
 -- The original "profiles: update own" policy lets any user update their own
 -- row — including the new columns. This trigger closes that hole: only an
--- admin may change `role` or `status`.
+-- admin may change `role` or `status` from the app.
+--
+-- Direct SQL (the Supabase SQL Editor, the service_role key, migrations)
+-- runs with no signed-in user — `auth.uid()` is NULL. That is already a
+-- trusted, admin-level path (it's how you grant the role in the first
+-- place), so the guard steps aside for it.
 create or replace function public.protect_profile_admin_fields()
 returns trigger
 language plpgsql
@@ -79,6 +84,9 @@ security definer
 set search_path = public
 as $$
 begin
+  if auth.uid() is null then
+    return new;
+  end if;
   if not public.is_admin() then
     if new.role is distinct from old.role or new.status is distinct from old.status then
       raise exception 'Only an admin can change role or status';
