@@ -10,6 +10,7 @@ import {
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   UserPlusIcon,
   WalletIcon,
 } from "lucide-react";
@@ -121,8 +122,13 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
             <DropdownMenuContent align="end" className="min-w-[15rem]">
               <DropdownMenuLabel className="normal-case">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-foreground">
-                    {auth.status === "loading" ? "Checking session…" : signedIn ? state.account.name : "Guest"}
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {auth.status === "loading" ? "Checking session…" : signedIn ? state.account.name : "Guest"}
+                    </span>
+                    {auth.role === "admin" ? (
+                      <Badge className="px-1.5 py-0 text-[9.5px] uppercase">Admin</Badge>
+                    ) : null}
                   </span>
                   <span className="font-mono text-[11px] font-normal">
                     {auth.status === "loading"
@@ -147,6 +153,12 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 <SyncStatus className="max-w-[9.5rem]" />
               </div>
               <DropdownMenuSeparator />
+              {auth.role === "admin" ? (
+                <DropdownMenuItem onClick={() => router.push("/app/admin")}>
+                  <ShieldCheckIcon />
+                  Admin dashboard
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
                 <WalletIcon />
                 Wallet &amp; funding

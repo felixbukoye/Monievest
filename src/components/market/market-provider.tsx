@@ -7,6 +7,7 @@ import { buildIndices, marketSession, type IndexQuote } from "@/lib/market/engin
 import { fetchLiveConfig, SIMULATED_CONFIG, type LiveConfig, type LiveDiagnostics } from "@/lib/market/live";
 import { marketStore, useMarketSnapshot } from "@/lib/market/store";
 import type { Quote } from "@/lib/market/types";
+import { applyUniversePayload, fetchUniverse } from "@/lib/market/universe";
 import { usePortfolio } from "@/lib/store/provider";
 
 const SESSION_PLACEHOLDER = { open: false, label: "Connecting…", phase: "closed" } as const;
@@ -69,6 +70,18 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       pollMs: Math.max(30, config.cacheSeconds) * 1000,
     });
   }, [config.live, config.provider, config.cacheSeconds, live]);
+
+  // Admin-curated universe: register admin-added stocks and drop any catalog
+  // stocks an admin disabled. No-op without Supabase or a signed-in session.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchUniverse().then((payload) => {
+      if (!cancelled && payload) applyUniversePayload(payload);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Tell the shared store whether it should keep ticking.
   useEffect(() => {

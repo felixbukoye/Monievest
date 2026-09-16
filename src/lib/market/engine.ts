@@ -215,30 +215,35 @@ function buildIntraday(instrument: Instrument, now: number): { t: number; p: num
   return candles.map((c) => ({ t: c.t, p: c.c }));
 }
 
+/** A fresh simulated quote for any instrument (catalog or admin-added). */
+export function quoteForInstrument(instrument: Instrument, now = Date.now()): Quote {
+  const rand = mulberry32(hashString(`${instrument.symbol}|quote`));
+  const prevClose = previousCloseOf(instrument);
+  const intraday = buildIntraday(instrument, now);
+  const prices = intraday.map((p) => p.p);
+  const open = prices[0] ?? prevClose;
+  return {
+    symbol: instrument.symbol,
+    price: instrument.price,
+    open,
+    prevClose,
+    change: instrument.price - prevClose,
+    changePct: instrument.changePct,
+    dayHigh: Math.max(...prices, instrument.price),
+    dayLow: Math.min(...prices, instrument.price),
+    volume: Math.round(instrument.avgVolume * (0.45 + rand() * 0.85)),
+    updatedAt: now,
+    direction: "flat",
+    intraday,
+    source: "simulated",
+  };
+}
+
 /** Build the full quote board once, at boot. */
 export function buildQuotes(now = Date.now()): Record<string, Quote> {
   const quotes: Record<string, Quote> = {};
   for (const instrument of CATALOG) {
-    const rand = mulberry32(hashString(`${instrument.symbol}|quote`));
-    const prevClose = previousCloseOf(instrument);
-    const intraday = buildIntraday(instrument, now);
-    const prices = intraday.map((p) => p.p);
-    const open = prices[0] ?? prevClose;
-    quotes[instrument.symbol] = {
-      symbol: instrument.symbol,
-      price: instrument.price,
-      open,
-      prevClose,
-      change: instrument.price - prevClose,
-      changePct: instrument.changePct,
-      dayHigh: Math.max(...prices, instrument.price),
-      dayLow: Math.min(...prices, instrument.price),
-      volume: Math.round(instrument.avgVolume * (0.45 + rand() * 0.85)),
-      updatedAt: now,
-      direction: "flat",
-      intraday,
-      source: "simulated",
-    };
+    quotes[instrument.symbol] = quoteForInstrument(instrument, now);
   }
   return quotes;
 }
@@ -264,7 +269,9 @@ export function tickQuotes(
 
   for (const symbol of symbols) {
     const quote = quotes[symbol]!;
-    const instrument = INSTRUMENTS_BY_SYMBOL[symbol];
+    // Catalog first, then admin-added / dynamically resolved instruments —
+    // they tick with their own volatility instead of freezing.
+    const instrument = INSTRUMENTS_BY_SYMBOL[symbol] ?? getInstrument(symbol);
     if (!instrument) {
       next[symbol] = quote;
       continue;
