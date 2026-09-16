@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  BarChart3Icon,
-  CandlestickChartIcon,
-  LifeBuoyIcon,
-  ReceiptTextIcon,
-  UsersIcon,
-} from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { OverviewTab } from "@/components/admin/overview-tab";
@@ -14,18 +9,57 @@ import { StocksTab } from "@/components/admin/stocks-tab";
 import { SupportTab } from "@/components/admin/support-tab";
 import { TradingTab } from "@/components/admin/trading-tab";
 import { UsersTab } from "@/components/admin/users-tab";
-import { AdminPageHeader } from "@/components/admin/admin-shared";
+import { AdminPageHeader, TableSkeleton } from "@/components/admin/admin-shared";
+import { ADMIN_TABS, adminHref, isAdminTabId } from "@/components/app/nav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 
-const TABS = [
-  { id: "overview", label: "Overview", icon: BarChart3Icon },
-  { id: "users", label: "Users", icon: UsersIcon },
-  { id: "trading", label: "Trading", icon: ReceiptTextIcon },
-  { id: "stocks", label: "Stocks & data", icon: CandlestickChartIcon },
-  { id: "support", label: "Support", icon: LifeBuoyIcon },
-] as const;
+/**
+ * The five sections live on one route and are selected with `?tab=`, which is
+ * what lets the sidebar, the hamburger menu and the notification bell deep-link
+ * straight to (say) an open support ticket.
+ */
+function AdminSections({ supabase }: { supabase: SupabaseClient }) {
+  const router = useRouter();
+  const params = useSearchParams();
+  const requested = params.get("tab");
+  const active = isAdminTabId(requested) ? requested : "overview";
+
+  return (
+    <Tabs
+      value={active}
+      onValueChange={(next) =>
+        router.replace(adminHref(isAdminTabId(next) ? next : "overview"), { scroll: false })
+      }
+    >
+      <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 p-1">
+        {ADMIN_TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="gap-1.5">
+            <tab.icon className="size-3.5" />
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      <TabsContent value="overview">
+        <OverviewTab supabase={supabase} />
+      </TabsContent>
+      <TabsContent value="users">
+        <UsersTab supabase={supabase} />
+      </TabsContent>
+      <TabsContent value="trading">
+        <TradingTab supabase={supabase} />
+      </TabsContent>
+      <TabsContent value="stocks">
+        <StocksTab supabase={supabase} />
+      </TabsContent>
+      <TabsContent value="support">
+        <SupportTab supabase={supabase} />
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 /**
  * The admin dashboard. Only reachable with `profiles.role = 'admin'` —
@@ -57,32 +91,10 @@ export function AdminView({ adminName }: { adminName: string }) {
         description={`Signed in as ${adminName}. Ordinary users never see this — they land on their personal dashboard instead.`}
       />
 
-      <Tabs defaultValue="overview">
-        <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 p-1">
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} className="gap-1.5">
-              <tab.icon className="size-3.5" />
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="overview">
-          <OverviewTab supabase={supabase} />
-        </TabsContent>
-        <TabsContent value="users">
-          <UsersTab supabase={supabase} />
-        </TabsContent>
-        <TabsContent value="trading">
-          <TradingTab supabase={supabase} />
-        </TabsContent>
-        <TabsContent value="stocks">
-          <StocksTab supabase={supabase} />
-        </TabsContent>
-        <TabsContent value="support">
-          <SupportTab supabase={supabase} />
-        </TabsContent>
-      </Tabs>
+      {/* Reads ?tab=, so it needs a boundary of its own. */}
+      <React.Suspense fallback={<TableSkeleton rows={8} />}>
+        <AdminSections supabase={supabase} />
+      </React.Suspense>
     </div>
   );
 }

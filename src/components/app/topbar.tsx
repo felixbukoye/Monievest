@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  LayoutDashboardIcon,
   LogInIcon,
   LogOutIcon,
   MenuIcon,
@@ -19,6 +20,8 @@ import * as React from "react";
 import { MarketStatus } from "@/components/app/market-status";
 import { SyncStatus } from "@/components/app/sync-status";
 import { SearchDialog } from "@/components/app/search-dialog";
+import { AdminNotificationBell } from "@/components/notifications/admin-notification-bell";
+import { UserNotificationBell } from "@/components/notifications/user-notification-bell";
 import { GeneratedAvatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +37,13 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { SidebarContent } from "./sidebar";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
+import type { ChromeMode } from "@/components/app/app-shell";
 
-export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
+export function Topbar({ mode, onTrade }: { mode: ChromeMode; onTrade: (symbol?: string) => void }) {
   const router = useRouter();
   const { state, hydrated, resetDemo, auth, signOut } = usePortfolio();
   const signedIn = auth.status === "authenticated";
+  const adminArea = mode === "admin";
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [navOpen, setNavOpen] = React.useState(false);
 
@@ -61,7 +66,7 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
           variant="ghost"
           size="icon"
           className="rounded-xl lg:hidden"
-          aria-label="Open navigation"
+          aria-label={adminArea ? "Open admin navigation" : "Open navigation"}
           onClick={() => setNavOpen(true)}
         >
           <MenuIcon />
@@ -84,26 +89,41 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
         <div className="ml-auto flex items-center gap-2">
           <MarketStatus className="hidden border-transparent bg-transparent py-0 pr-0 md:flex" showLabel />
 
-          <Link
-            href="/app/wallet"
-            className="card-soft flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 transition-colors hover:border-primary/40"
-            title="Available cash"
-          >
-            <WalletIcon className="size-4 text-muted-foreground" />
-            <span className="tnum text-[13px] font-semibold">{hydrated ? formatMoney(state.cash) : "—"}</span>
-          </Link>
+          {/* Wallet and the order ticket are investor features — admin is admin-only. */}
+          {adminArea ? null : (
+            <>
+              <Link
+                href="/app/wallet"
+                className="card-soft flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 transition-colors hover:border-primary/40"
+                title="Available cash"
+              >
+                <WalletIcon className="size-4 text-muted-foreground" />
+                <span className="tnum text-[13px] font-semibold">
+                  {hydrated ? formatMoney(state.cash) : "—"}
+                </span>
+              </Link>
 
-          <Button
-            size="sm"
-            className="hidden h-10 gap-1.5 rounded-full px-4 sm:flex"
-            onClick={() => onTrade()}
-          >
-            <PlusIcon />
-            Trade
-          </Button>
-          <Button size="icon" className="h-10 w-10 rounded-full sm:hidden" aria-label="New trade" onClick={() => onTrade()}>
-            <PlusIcon />
-          </Button>
+              <Button
+                size="sm"
+                className="hidden h-10 gap-1.5 rounded-full px-4 sm:flex"
+                onClick={() => onTrade()}
+              >
+                <PlusIcon />
+                Trade
+              </Button>
+              <Button
+                size="icon"
+                className="h-10 w-10 rounded-full sm:hidden"
+                aria-label="New trade"
+                onClick={() => onTrade()}
+              >
+                <PlusIcon />
+              </Button>
+            </>
+          )}
+
+          {/* Each dashboard gets its own bell: your own activity or the admin feed. */}
+          {adminArea ? <AdminNotificationBell /> : <UserNotificationBell />}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -153,16 +173,23 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 <SyncStatus className="max-w-[9.5rem]" />
               </div>
               <DropdownMenuSeparator />
-              {auth.role === "admin" ? (
+              {adminArea ? (
+                <DropdownMenuItem onClick={() => router.push("/app")}>
+                  <LayoutDashboardIcon />
+                  Back to dashboard
+                </DropdownMenuItem>
+              ) : auth.role === "admin" ? (
                 <DropdownMenuItem onClick={() => router.push("/app/admin")}>
                   <ShieldCheckIcon />
                   Admin dashboard
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
-                <WalletIcon />
-                Wallet &amp; funding
-              </DropdownMenuItem>
+              {adminArea ? null : (
+                <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
+                  <WalletIcon />
+                  Wallet &amp; funding
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => router.push("/app/settings")}>
                 <SettingsIcon />
                 Settings
@@ -205,8 +232,13 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent side="left" className="w-[268px] p-0">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarContent onNavigate={() => setNavOpen(false)} onTrade={onTrade} />
+          <SheetTitle className="sr-only">
+            {adminArea ? "Admin navigation" : "Navigation"}
+          </SheetTitle>
+          {/* Inside the admin dashboard the hamburger opens the admin menu. */}
+          <React.Suspense fallback={null}>
+            <SidebarContent mode={mode} onNavigate={() => setNavOpen(false)} onTrade={onTrade} />
+          </React.Suspense>
         </SheetContent>
       </Sheet>
     </>
