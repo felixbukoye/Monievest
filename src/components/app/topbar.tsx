@@ -31,14 +31,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { NotificationBell } from "./notification-bell";
 import { SidebarContent } from "./sidebar";
+import type { ChromeMode } from "./nav";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
 
-export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
+/**
+ * The top bar.
+ *
+ * `mode="admin"` strips it down to administration: no order ticket, no wallet
+ * balance, no demo-data reset — just search, the notification bell for the
+ * admin feed, and the account menu. The hamburger opens the admin menu too.
+ */
+export function Topbar({ onTrade, mode = "user" }: { onTrade: (symbol?: string) => void; mode?: ChromeMode }) {
   const router = useRouter();
   const { state, hydrated, resetDemo, auth, signOut } = usePortfolio();
   const signedIn = auth.status === "authenticated";
+  const isAdminMode = mode === "admin";
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [navOpen, setNavOpen] = React.useState(false);
 
@@ -61,7 +71,7 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
           variant="ghost"
           size="icon"
           className="rounded-xl lg:hidden"
-          aria-label="Open navigation"
+          aria-label={isAdminMode ? "Open admin menu" : "Open navigation"}
           onClick={() => setNavOpen(true)}
         >
           <MenuIcon />
@@ -84,26 +94,47 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
         <div className="ml-auto flex items-center gap-2">
           <MarketStatus className="hidden border-transparent bg-transparent py-0 pr-0 md:flex" showLabel />
 
-          <Link
-            href="/app/wallet"
-            className="card-soft flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 transition-colors hover:border-primary/40"
-            title="Available cash"
-          >
-            <WalletIcon className="size-4 text-muted-foreground" />
-            <span className="tnum text-[13px] font-semibold">{hydrated ? formatMoney(state.cash) : "—"}</span>
-          </Link>
+          {isAdminMode ? (
+            <span
+              className="card-soft hidden h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 text-[12.5px] font-medium text-muted-foreground sm:flex"
+              title="Administration only — trading features are disabled on admin accounts"
+            >
+              <ShieldCheckIcon className="size-4 text-primary" />
+              Admin console
+            </span>
+          ) : (
+            <Link
+              href="/app/wallet"
+              className="card-soft flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 transition-colors hover:border-primary/40"
+              title="Available cash"
+            >
+              <WalletIcon className="size-4 text-muted-foreground" />
+              <span className="tnum text-[13px] font-semibold">{hydrated ? formatMoney(state.cash) : "—"}</span>
+            </Link>
+          )}
 
-          <Button
-            size="sm"
-            className="hidden h-10 gap-1.5 rounded-full px-4 sm:flex"
-            onClick={() => onTrade()}
-          >
-            <PlusIcon />
-            Trade
-          </Button>
-          <Button size="icon" className="h-10 w-10 rounded-full sm:hidden" aria-label="New trade" onClick={() => onTrade()}>
-            <PlusIcon />
-          </Button>
+          {isAdminMode ? null : (
+            <>
+              <Button
+                size="sm"
+                className="hidden h-10 gap-1.5 rounded-full px-4 sm:flex"
+                onClick={() => onTrade()}
+              >
+                <PlusIcon />
+                Trade
+              </Button>
+              <Button
+                size="icon"
+                className="h-10 w-10 rounded-full sm:hidden"
+                aria-label="New trade"
+                onClick={() => onTrade()}
+              >
+                <PlusIcon />
+              </Button>
+            </>
+          )}
+
+          <NotificationBell audience={isAdminMode ? "admin" : "user"} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -153,29 +184,33 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
                 <SyncStatus className="max-w-[9.5rem]" />
               </div>
               <DropdownMenuSeparator />
-              {auth.role === "admin" ? (
+              {auth.role === "admin" && !isAdminMode ? (
                 <DropdownMenuItem onClick={() => router.push("/app/admin")}>
                   <ShieldCheckIcon />
-                  Admin dashboard
+                  Admin console
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
-                <WalletIcon />
-                Wallet &amp; funding
-              </DropdownMenuItem>
+              {isAdminMode ? null : (
+                <DropdownMenuItem onClick={() => router.push("/app/wallet")}>
+                  <WalletIcon />
+                  Wallet &amp; funding
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => router.push("/app/settings")}>
                 <SettingsIcon />
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  resetDemo();
-                  router.push("/app");
-                }}
-              >
-                <RefreshCwIcon />
-                {signedIn ? "Reset account" : "Reset demo data"}
-              </DropdownMenuItem>
+              {isAdminMode ? null : (
+                <DropdownMenuItem
+                  onClick={() => {
+                    resetDemo();
+                    router.push("/app");
+                  }}
+                >
+                  <RefreshCwIcon />
+                  {signedIn ? "Reset account" : "Reset demo data"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               {auth.status === "loading" ? (
                 <DropdownMenuItem disabled>Checking session…</DropdownMenuItem>
@@ -205,8 +240,8 @@ export function Topbar({ onTrade }: { onTrade: (symbol?: string) => void }) {
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent side="left" className="w-[268px] p-0">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarContent onNavigate={() => setNavOpen(false)} onTrade={onTrade} />
+          <SheetTitle className="sr-only">{isAdminMode ? "Admin menu" : "Navigation"}</SheetTitle>
+          <SidebarContent mode={mode} onNavigate={() => setNavOpen(false)} onTrade={onTrade} />
         </SheetContent>
       </Sheet>
     </>

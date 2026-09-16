@@ -15,6 +15,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { getInstrument } from "@/lib/market/catalog";
+import { pushNotification } from "@/lib/notifications/store";
 import { getSupabaseBrowser, isSupabaseConfigured } from "@/lib/supabase/client";
 import { createFreshState, createSeedState } from "./seed";
 import { reducer } from "./reducer";
@@ -404,9 +405,19 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
             : "Limit order is live — it fills automatically when the price is hit.",
         },
       );
+      void pushNotification(getSupabaseBrowser(), userId, {
+        kind: isMarket ? "success" : "info",
+        title: isMarket
+          ? `${input.side === "buy" ? "Bought" : "Sold"} ${input.qty} ${input.symbol}`
+          : `${input.side === "buy" ? "Buy" : "Sell"} order placed · ${input.qty} ${input.symbol}`,
+        body: isMarket
+          ? `Filled at $${input.marketPrice.toFixed(2)} per share.`
+          : `Resting at $${price.toFixed(2)} — it fills automatically when the price is hit.`,
+        href: "/app/activity",
+      });
       return { ok: true };
     },
-    [state.cash, state.positions],
+    [state.cash, state.positions, userId],
   );
 
   const cancelOrder = useCallback((id: string) => {
@@ -421,7 +432,13 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     }
     dispatch({ type: "deposit", payload: { amount, method } });
     toast.success(`$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} added to your cash balance`);
-  }, []);
+    void pushNotification(getSupabaseBrowser(), userId, {
+      kind: "success",
+      title: "Deposit received",
+      body: `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} was added to your cash balance.`,
+      href: "/app/wallet",
+    });
+  }, [userId]);
 
   const withdraw = useCallback(
     (amount: number) => {
@@ -435,8 +452,14 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       }
       dispatch({ type: "withdraw", payload: { amount } });
       toast.success(`Withdrawing $${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
+      void pushNotification(getSupabaseBrowser(), userId, {
+        kind: "info",
+        title: "Withdrawal requested",
+        body: `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} is on its way out of your cash balance.`,
+        href: "/app/wallet",
+      });
     },
-    [state.cash],
+    [state.cash, userId],
   );
 
   const toggleWatchlist = useCallback(

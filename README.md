@@ -127,6 +127,9 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 
 **Account**
 
+- **Notification bell** in the top bar with an unread badge — order fills, deposits and withdrawals,
+  replies from support and account changes. Backed by `public.notifications` (see migration 0003),
+  polled every 45 s and re-checked when the tab regains focus; mark one read or all of them
 - Wallet with deposits, withdrawals, funding methods and reserved-by-open-orders buying power
 - Activity log with filters (trades, cash, orders) and JSON export
 - Watchlist with live cards and suggestions
@@ -150,6 +153,11 @@ Leave the key lines blank and Monievest runs entirely on the local simulator —
 
 - Accounts with `profiles.role = 'admin'` land on the **admin dashboard** instead of their personal
   one, and carry an **Admin** badge in the chrome
+- The console is administration-only: the sidebar and the hamburger menu list the five console
+  sections (no investor menu), and the order ticket, wallet and portfolio are gone — `/app/wallet`
+  sends an admin straight back to the console
+- Its own **notification bell** with platform events: new sign-ups and incoming feedback/bug
+  reports, each deep-linking to the right console section
 - User management: name / email / sign-up date / wallet balance per user, plus active / disabled
   status to block a spam or abusive account
 - Demo trading activity: every order across all users, and portfolio value per user with anomaly
@@ -250,7 +258,7 @@ New accounts start with **$25,000** of demo cash, credited by the `handle_new_us
 ### What is stored where
 
 **In Supabase (per user):** `profiles` (name, tier, account number), `portfolios` (cash, realised
-P&L), `positions`, `orders`, `activity` (the ledger), `watchlist`.
+P&L), `positions`, `orders`, `activity` (the ledger), `watchlist`, `notifications` (the bell).
 **On the device only:** `settings` — theme, compact tables, default chart range, price engine
 toggles. Preferences should not follow you between a phone and a desktop.
 
@@ -292,6 +300,7 @@ src/components/auth/           The sign-in / sign-up form (useActionState)
 src/lib/store/supabase-sync.ts Row ↔ state mapping, debounced writes, reset
 supabase/migrations/0001_init.sql   Paste into the Supabase SQL Editor
 supabase/migrations/0002_admin.sql  Admin role, status, feedback, demo stocks
+supabase/migrations/0003_notifications.sql  Notifications, their triggers and RLS
 ```
 
 ### Troubleshooting
@@ -300,6 +309,9 @@ supabase/migrations/0002_admin.sql  Admin role, status, feedback, demo stocks
   sign-in form reports Supabase's own error message.
 - **"Could not reach Supabase"** in Settings → *Account & sync* — check the URL and that the
   project is active.
+- **The bell says "Notifications are not set up yet"** — run
+  `supabase/migrations/0003_notifications.sql`. Until then nothing is lost: fills and funding still
+  raise notifications locally in the browser.
 - **Signed up but got no account rows** — the migration wasn't run, so the trigger doesn't exist.
   Run it, then use **Reset account** (or sign up again) to bootstrap the rows.
 - **Email confirmation** — *Authentication → Providers → Email → Confirm email*. The app handles
@@ -319,7 +331,14 @@ One or more accounts can carry the **admin** role. When an admin signs in, `/app
 the **admin dashboard** (`/app/admin`) instead of the personal dashboard; every other user keeps
 seeing their own portfolio exactly as before.
 
-**What's inside** — five tabs:
+**The console has its own chrome.** For an admin account the sidebar *and* the hamburger menu show
+the admin menu — the five sections below, plus preferences — and nothing else. There is no order
+ticket, no wallet balance and no portfolio card, `/app/wallet` redirects back to the console, and
+the top bar's notification bell reads the **admin** feed instead of the personal one. The role is
+read on the server by the `/app` layout, so the correct chrome is in the first HTML rather than
+flashing the investor menu.
+
+**What's inside** — five tabs, each addressable as `/app/admin?tab=<section>`:
 
 - **Overview (analytics)** — total sign-ups (plus a 14-day chart), total demo trades placed,
   most-traded stocks, open feedback and disabled-account counts.
@@ -346,6 +365,24 @@ src/app/app/feedback/page.tsx      The user-facing feedback form
 src/app/api/stocks/route.ts        Publishes the admin stock universe to clients
 supabase/migrations/0002_admin.sql Role, status, feedback, demo_stocks, admin RLS
 ```
+
+**Notifications** live in `src/lib/notifications/` (data access + the `useNotifications` hook) and
+`src/components/app/notification-bell.tsx`, with `supabase/migrations/0003_notifications.sql`
+providing the table, the triggers that fill it and the policies that keep the two feeds apart:
+
+| Event | Who is notified |
+| --- | --- |
+| New account signs up | admins — *New investor joined* (→ Users) |
+| Account created | that user — *Welcome to Monievest* |
+| Feedback / bug report submitted | admins — *New bug report* (→ Support inbox) |
+| Admin replies to or closes a ticket | that user — *Support replied to your message* |
+| Account disabled / re-enabled, role granted or removed | that user |
+| Order filled, deposit or withdrawal | that user (written by the app) |
+
+Rows written by triggers carry deterministic ids, so re-running a trigger — or the migration — can
+never duplicate a notification. A user's read state is the `read_at` column (it follows them across
+devices); the admin feed is shared, so its read state is kept per browser and admin rows are
+deliberately not updatable through the API.
 
 **How access control works.** The role is a column: `profiles.role = 'admin'`. The app's route
 guard (`requireAdminProfile()`) redirects non-admins, and — more importantly — every admin query is
@@ -375,8 +412,10 @@ update public.profiles p
 
 Check it worked: `select display_name, email, role, status from public.profiles;`
 Demote the same way with `set role = 'user'`. The change takes effect on the person's next page
-load — they get the **Admin** badge, an *Administration* section in the sidebar, and land on the
-admin dashboard instead of their portfolio.
+load — they get the **Admin** badge, the admin console chrome (admin menu in the sidebar and the
+hamburger, no wallet or trading), and land on the admin dashboard instead of their portfolio. They
+also get a *You are now an administrator* notification, which the trigger from
+`0003_notifications.sql` writes for you.
 
 ## Hydration strategy
 
@@ -417,8 +456,8 @@ src/
 │       ├── settings/page.tsx   /app/settings   Settings
 │       └── stock/[symbol]/     /app/stock/AAPL Stock detail (dynamic metadata)
 ├── components/
-│   ├── app/                    Shell: sidebar (nav + theme control), topbar, search palette,
-│   │                           sync indicator
+│   ├── app/                    Shell: sidebar (investor + admin menus, theme control), topbar,
+│   │                           notification bell, search palette, sync indicator, nav model
 │   ├── auth/                   Sign-in / sign-up form (useActionState)
 │   ├── dashboard/              Stock rail, Portfolio Values + Statistics cards, My Stock table
 │   ├── charts/                 Price/performance/allocation charts + range selector
@@ -434,6 +473,8 @@ src/
 ├── proxy.ts                    Session refresh + /app/* route protection
 └── lib/
     ├── hooks/use-mounted.ts
+    ├── hooks/use-admin-tab.ts  Which admin console section is open (menu ↔ page)
+    ├── notifications/          types, Postgres + localStorage store, useNotifications, useNotify
     ├── market/                 types, catalog, engine, store, news, providers/
     ├── store/                  types, seed, reducer, provider, selectors, supabase-sync
     ├── supabase/               config, browser client, server client, session

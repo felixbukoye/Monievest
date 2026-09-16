@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOutIcon, MonitorIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
+import { LogOutIcon, MonitorIcon, MoonIcon, PlusIcon, ShieldCheckIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as React from "react";
 
@@ -15,16 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { useActiveAdminTab } from "@/lib/hooks/use-admin-tab";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
 import { summarise } from "@/lib/store/selectors";
-import { ADMIN_GROUP, APP_GROUPS } from "./nav";
+import { isNavItemActive, navGroupsFor, type ChromeMode } from "./nav";
 import { cn } from "@/lib/utils";
-
-function isActive(pathname: string, href: string, exact?: boolean) {
-  if (exact) return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 const THEME_CHOICES = [
   { id: "light", label: "Light", icon: SunIcon },
@@ -69,39 +65,110 @@ export function ThemeSegmented({ className }: { className?: string }) {
   );
 }
 
+/** Portfolio value summary — investor chrome only. */
+function PortfolioSummaryCard({ onNavigate }: { onNavigate?: () => void }) {
+  const { state, hydrated } = usePortfolio();
+  const { quotes } = useMarket();
+  const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
+
+  return (
+    <Link
+      href="/app/portfolio"
+      onClick={onNavigate}
+      className="card-soft flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
+    >
+      <div className="min-w-0">
+        <p className="text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
+          Portfolio value
+        </p>
+        {hydrated ? (
+          <p className="tnum mt-0.5 text-[17px] font-semibold tracking-tight">{formatMoney(summary.totalValue)}</p>
+        ) : (
+          <Skeleton className="mt-1 h-5 w-24" />
+        )}
+      </div>
+      {hydrated ? (
+        <span
+          className={cn(
+            "tnum rounded-full px-2 py-1 text-[11px] font-semibold",
+            summary.dayChange >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
+          )}
+        >
+          {summary.dayChange >= 0 ? "↑" : "↓"} {Math.abs(summary.dayChangePct).toFixed(2)}%
+        </span>
+      ) : (
+        <Skeleton className="h-6 w-14 rounded-full" />
+      )}
+    </Link>
+  );
+}
+
+/** Shown in place of the portfolio card for admin accounts. */
+function AdminConsoleCard() {
+  return (
+    <div className="card-soft rounded-xl border border-border/70 bg-card px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wider text-primary uppercase">
+        <ShieldCheckIcon className="size-3.5" />
+        Admin console
+      </p>
+      <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
+        Platform tools only. Trading, the wallet and your portfolio are switched off for admin
+        accounts.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The navigation column — and, on small screens, the hamburger sheet.
+ *
+ * `mode` decides whose menu this is:
+ *   • `"user"`  — the investor app (overview, markets, portfolio, wallet, …).
+ *   • `"admin"` — the admin console sections and nothing else. Admin accounts
+ *     never get the investor menu, so there is no wallet or order ticket here.
+ */
 export function SidebarContent({
   onNavigate,
   onTrade,
+  mode = "user",
 }: {
   onNavigate?: () => void;
   onTrade?: (symbol?: string) => void;
+  mode?: ChromeMode;
 }) {
   const pathname = usePathname();
   const { state, hydrated, auth, signOut } = usePortfolio();
   const signedIn = auth.status === "authenticated";
-  const { quotes } = useMarket();
-  const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
+  const adminTab = useActiveAdminTab();
   const pending = state.orders.filter((order) => order.status === "pending").length;
-  const isAdmin = auth.role === "admin";
-  const navGroups = isAdmin ? [...APP_GROUPS, ADMIN_GROUP] : APP_GROUPS;
+  const isAdminMode = mode === "admin";
+  const navGroups = navGroupsFor(mode);
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
       <div className="flex items-center justify-between gap-2 px-1 pt-1">
         <Wordmark />
+        {isAdminMode ? (
+          <Badge className="shrink-0 gap-1 px-1.5 py-0 text-[9.5px] uppercase">
+            <ShieldCheckIcon />
+            Admin
+          </Badge>
+        ) : null}
       </div>
 
-      <Button
-        variant="default"
-        className="h-10 w-full justify-center gap-2 rounded-full shadow-sm"
-        onClick={() => {
-          onTrade?.();
-          onNavigate?.();
-        }}
-      >
-        <PlusIcon />
-        New trade
-      </Button>
+      {isAdminMode ? null : (
+        <Button
+          variant="default"
+          className="h-10 w-full justify-center gap-2 rounded-full shadow-sm"
+          onClick={() => {
+            onTrade?.();
+            onNavigate?.();
+          }}
+        >
+          <PlusIcon />
+          New trade
+        </Button>
+      )}
 
       {navGroups.map((group) => (
         <nav key={group.label} className="flex flex-col gap-1" aria-label={group.label}>
@@ -109,7 +176,7 @@ export function SidebarContent({
             {group.label}
           </p>
           {group.items.map((item) => {
-            const active = isActive(pathname, item.href, item.exact);
+            const active = isNavItemActive(item, pathname, isAdminMode ? adminTab : null);
             return (
               <Link
                 key={item.href}
@@ -146,36 +213,7 @@ export function SidebarContent({
       <div className="mt-auto space-y-3 pt-2">
         <Separator />
 
-        <Link
-          href="/app/portfolio"
-          onClick={onNavigate}
-          className="card-soft flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
-        >
-          <div className="min-w-0">
-            <p className="text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
-              Portfolio value
-            </p>
-            {hydrated ? (
-              <p className="tnum mt-0.5 text-[17px] font-semibold tracking-tight">
-                {formatMoney(summary.totalValue)}
-              </p>
-            ) : (
-              <Skeleton className="mt-1 h-5 w-24" />
-            )}
-          </div>
-          {hydrated ? (
-            <span
-              className={cn(
-                "tnum rounded-full px-2 py-1 text-[11px] font-semibold",
-                summary.dayChange >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
-              )}
-            >
-              {summary.dayChange >= 0 ? "↑" : "↓"} {Math.abs(summary.dayChangePct).toFixed(2)}%
-            </span>
-          ) : (
-            <Skeleton className="h-6 w-14 rounded-full" />
-          )}
-        </Link>
+        {isAdminMode ? <AdminConsoleCard /> : <PortfolioSummaryCard onNavigate={onNavigate} />}
 
         <ThemeSegmented />
 
@@ -203,7 +241,7 @@ export function SidebarContent({
                     <span className="truncate text-[12.5px] font-semibold">
                       {signedIn ? state.account.name : "Guest"}
                     </span>
-                    {isAdmin ? (
+                    {auth.role === "admin" ? (
                       <Badge className="px-1.5 py-0 text-[9.5px] uppercase">Admin</Badge>
                     ) : null}
                   </span>
@@ -255,10 +293,13 @@ export function SidebarContent({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ mode = "user" }: { mode?: ChromeMode }) {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
-      <SidebarContent />
+    <aside
+      className="sticky top-0 hidden h-dvh w-[268px] shrink-0 border-r border-sidebar-border bg-sidebar lg:block"
+      aria-label={mode === "admin" ? "Admin console navigation" : "Main navigation"}
+    >
+      <SidebarContent mode={mode} />
     </aside>
   );
 }
