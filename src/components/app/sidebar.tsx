@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { LogOutIcon, MonitorIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as React from "react";
 
+import { AdminBadge } from "@/components/admin/admin-shared";
 import { SyncStatus } from "@/components/app/sync-status";
 import { Wordmark } from "@/components/brand";
 import { useMarket } from "@/components/market/market-provider";
@@ -18,12 +19,18 @@ import { useMounted } from "@/lib/hooks/use-mounted";
 import { formatMoney } from "@/lib/format";
 import { usePortfolio } from "@/lib/store/provider";
 import { summarise } from "@/lib/store/selectors";
-import { ADMIN_GROUP, APP_GROUPS } from "./nav";
+import type { ChromeMode } from "@/components/app/app-shell";
+import { ADMIN_GROUP, ADMIN_NAV_GROUPS, APP_GROUPS, isAdminPath, isAdminTabId, type NavItem } from "./nav";
 import { cn } from "@/lib/utils";
 
-function isActive(pathname: string, href: string, exact?: boolean) {
-  if (exact) return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isActive(pathname: string, item: NavItem, activeTab: string | null) {
+  // Admin sections share one route and are told apart by `?tab=`.
+  if (item.tab) {
+    if (!isAdminPath(pathname)) return false;
+    return (isAdminTabId(activeTab) ? activeTab : "overview") === item.tab;
+  }
+  if (item.exact) return pathname === item.href;
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
 const THEME_CHOICES = [
@@ -70,38 +77,48 @@ export function ThemeSegmented({ className }: { className?: string }) {
 }
 
 export function SidebarContent({
+  mode = "user",
   onNavigate,
   onTrade,
 }: {
+  /** `"admin"` swaps the user menu for the admin sections — see AppShell. */
+  mode?: ChromeMode;
   onNavigate?: () => void;
   onTrade?: (symbol?: string) => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab");
   const { state, hydrated, auth, signOut } = usePortfolio();
   const signedIn = auth.status === "authenticated";
   const { quotes } = useMarket();
   const summary = React.useMemo(() => summarise(state, quotes), [state, quotes]);
   const pending = state.orders.filter((order) => order.status === "pending").length;
-  const isAdmin = auth.role === "admin";
-  const navGroups = isAdmin ? [...APP_GROUPS, ADMIN_GROUP] : APP_GROUPS;
+  const isStaff = auth.role === "admin";
+  const adminArea = mode === "admin";
+  const navGroups = adminArea ? ADMIN_NAV_GROUPS : isStaff ? [...APP_GROUPS, ADMIN_GROUP] : APP_GROUPS;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
       <div className="flex items-center justify-between gap-2 px-1 pt-1">
         <Wordmark />
+        {adminArea ? <AdminBadge className="shrink-0" /> : null}
       </div>
 
-      <Button
-        variant="default"
-        className="h-10 w-full justify-center gap-2 rounded-full shadow-sm"
-        onClick={() => {
-          onTrade?.();
-          onNavigate?.();
-        }}
-      >
-        <PlusIcon />
-        New trade
-      </Button>
+      {/* Trading is an investor feature — the admin dashboard has no order ticket. */}
+      {adminArea ? null : (
+        <Button
+          variant="default"
+          className="h-10 w-full justify-center gap-2 rounded-full shadow-sm"
+          onClick={() => {
+            onTrade?.();
+            onNavigate?.();
+          }}
+        >
+          <PlusIcon />
+          New trade
+        </Button>
+      )}
 
       {navGroups.map((group) => (
         <nav key={group.label} className="flex flex-col gap-1" aria-label={group.label}>
@@ -109,7 +126,7 @@ export function SidebarContent({
             {group.label}
           </p>
           {group.items.map((item) => {
-            const active = isActive(pathname, item.href, item.exact);
+            const active = isActive(pathname, item, activeTab);
             return (
               <Link
                 key={item.href}
@@ -146,36 +163,39 @@ export function SidebarContent({
       <div className="mt-auto space-y-3 pt-2">
         <Separator />
 
-        <Link
-          href="/app/portfolio"
-          onClick={onNavigate}
-          className="card-soft flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
-        >
-          <div className="min-w-0">
-            <p className="text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
-              Portfolio value
-            </p>
-            {hydrated ? (
-              <p className="tnum mt-0.5 text-[17px] font-semibold tracking-tight">
-                {formatMoney(summary.totalValue)}
+        {/* The portfolio card belongs to the investing side, not to admin. */}
+        {adminArea ? null : (
+          <Link
+            href="/app/portfolio"
+            onClick={onNavigate}
+            className="card-soft flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
+          >
+            <div className="min-w-0">
+              <p className="text-[10.5px] font-semibold tracking-wider text-muted-foreground uppercase">
+                Portfolio value
               </p>
-            ) : (
-              <Skeleton className="mt-1 h-5 w-24" />
-            )}
-          </div>
-          {hydrated ? (
-            <span
-              className={cn(
-                "tnum rounded-full px-2 py-1 text-[11px] font-semibold",
-                summary.dayChange >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
+              {hydrated ? (
+                <p className="tnum mt-0.5 text-[17px] font-semibold tracking-tight">
+                  {formatMoney(summary.totalValue)}
+                </p>
+              ) : (
+                <Skeleton className="mt-1 h-5 w-24" />
               )}
-            >
-              {summary.dayChange >= 0 ? "↑" : "↓"} {Math.abs(summary.dayChangePct).toFixed(2)}%
-            </span>
-          ) : (
-            <Skeleton className="h-6 w-14 rounded-full" />
-          )}
-        </Link>
+            </div>
+            {hydrated ? (
+              <span
+                className={cn(
+                  "tnum rounded-full px-2 py-1 text-[11px] font-semibold",
+                  summary.dayChange >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
+                )}
+              >
+                {summary.dayChange >= 0 ? "↑" : "↓"} {Math.abs(summary.dayChangePct).toFixed(2)}%
+              </span>
+            ) : (
+              <Skeleton className="h-6 w-14 rounded-full" />
+            )}
+          </Link>
+        )}
 
         <ThemeSegmented />
 
@@ -203,7 +223,7 @@ export function SidebarContent({
                     <span className="truncate text-[12.5px] font-semibold">
                       {signedIn ? state.account.name : "Guest"}
                     </span>
-                    {isAdmin ? (
+                    {isStaff ? (
                       <Badge className="px-1.5 py-0 text-[9.5px] uppercase">Admin</Badge>
                     ) : null}
                   </span>
@@ -255,10 +275,10 @@ export function SidebarContent({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ mode = "user" }: { mode?: ChromeMode }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
-      <SidebarContent />
+      <SidebarContent mode={mode} />
     </aside>
   );
 }
