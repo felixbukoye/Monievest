@@ -11,7 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { getInstrument } from "@/lib/market/catalog";
@@ -102,6 +102,7 @@ function normalize(parsed: PortfolioState, email?: string | null): PortfolioStat
 
 export function PortfolioProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   // The initial value is deterministic on both server and client; real data is
   // read inside an effect so SSR markup and the first client render match.
   const [state, dispatch] = useReducer(reducer, undefined, () => createSeedState());
@@ -119,6 +120,12 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const skipPersist = useRef(true);
   /** Guards against out-of-order loads when someone signs in/out quickly. */
   const loadToken = useRef(0);
+  /**
+   * Id of the user whose portfolio load just started. Synchronous, so two
+   * concurrent session discoveries (boot check + post-navigation check) can't
+   * both kick off a load for the same user.
+   */
+  const enteringUserIdRef = useRef<string | null>(null);
   const settingsRef = useRef<Settings>(state.settings);
 
   useEffect(() => {
@@ -137,38 +144,48 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Boot: pick up the session, then load that user's portfolio from Postgres.
-  // With no Supabase env this is the original localStorage demo behaviour.
+  // Mode switching. Sign-in/out can happen through *another* Supabase client
+  // instance than the one mounted here (the auth forms use server actions,
+  // whose redirect is a client-side navigation), so these are shared between
+  // the boot check below and the post-navigation re-check.
   // -------------------------------------------------------------------------
-  useEffect(() => {
-    let disposed = false;
-    const client = getSupabaseBrowser();
+  const enterGuestMode = useCallback(() => {
+    // Invalidate any in-flight user load so it can't commit after a sign-out.
+    loadToken.current += 1;
+    const cached = readCache(storageKeyFor(null));
+    commit(null, cached ? normalize(cached) : createSeedState());
+    enteringUserIdRef.current = null;
+    setAuthStatus("guest");
+    setSyncStatus("idle");
+    setUserId(null);
+    setUserEmail(null);
+    setUserRole(null);
+  }, [commit]);
 
-    function enterGuestMode() {
-      const cached = readCache(storageKeyFor(null));
-      commit(null, cached ? normalize(cached) : createSeedState());
-      setAuthStatus("guest");
-      setSyncStatus("idle");
-      setUserId(null);
-      setUserEmail(null);
-      setUserRole(null);
-    }
-
-    async function enterUserMode(id: string, email: string) {
+  const enterUserMode = useCallback(
+    async (id: string, email: string) => {
       const token = ++loadToken.current;
+      enteringUserIdRef.current = id;
       setAuthStatus("loading");
       setUserId(id);
       setUserEmail(email);
 
       // Paint the local cache first so the dashboard is never blank on reload.
+      // With no cached copy (first sign-in on this device) drop back to the
+      // loading skeletons so the seeded demo account is never mistaken for
+      // the user's real portfolio.
       const cached = readCache(storageKeyFor(id));
-      if (cached) commit(id, normalize(cached, email));
+      if (cached) {
+        commit(id, normalize(cached, email));
+      } else {
+        setHydrated(false);
+      }
 
       const supabase = getSupabaseBrowser();
       if (!supabase) return;
 
       const result = await loadPortfolio(supabase, id, email);
-      if (disposed || token !== loadToken.current) return;
+      if (token !== loadToken.current) return;
 
       const localSettings = (cached ? normalize(cached, email) : null)?.settings ?? settingsRef.current;
 
@@ -198,7 +215,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
         commit(id, next);
         setAuthStatus("authenticated");
         const pushed = await pushPortfolio(supabase, id, next);
-        if (disposed || token !== loadToken.current) return;
+        if (token !== loadToken.current) return;
         setSyncStatus(pushed.ok ? "synced" : "error");
         setSyncError(pushed.ok ? null : (pushed.error ?? "Could not save your portfolio"));
         if (pushed.ok) setLastSyncedAt(Date.now());
@@ -210,7 +227,17 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       setAuthStatus("authenticated");
       setSyncStatus("error");
       setSyncError(result.error);
-    }
+    },
+    [commit, router],
+  );
+
+  // -------------------------------------------------------------------------
+  // Boot: pick up the session, then load that user's portfolio from Postgres.
+  // With no Supabase env this is the original localStorage demo behaviour.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    let disposed = false;
+    const client = getSupabaseBrowser();
 
     if (!client) {
       // No Supabase configured — guest mode, exactly like before.
@@ -242,7 +269,33 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       disposed = true;
       subscription?.subscription.unsubscribe();
     };
-  }, [commit, router]);
+  }, [enterGuestMode, enterUserMode]);
+
+  // -------------------------------------------------------------------------
+  // A session can also appear while the app stays mounted: the auth forms
+  // sign in through a server action, and its redirect is a client-side
+  // navigation, so the onAuthStateChange subscription above never fires for
+  // it and the app would keep showing the seeded demo portfolio until a
+  // refresh. Re-check the cookie when the route changes and adopt the
+  // session if one is there (the browser client reads document.cookie fresh
+  // on every access, so the cookie set by the action's response is visible).
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const client = getSupabaseBrowser();
+    if (!client || authStatus === "authenticated") return;
+
+    let cancelled = false;
+    void client.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const user = data.session?.user;
+      if (!user || user.id === userId || user.id === enteringUserIdRef.current) return;
+      void enterUserMode(user.id, user.email ?? "");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, authStatus, userId, enterUserMode]);
 
   // -------------------------------------------------------------------------
   // Persist: localStorage on every change, Postgres debounced while signed in.
