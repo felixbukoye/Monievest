@@ -38,6 +38,8 @@ type PortfolioContextValue = {
     status: AuthStatus;
     userId: string | null;
     email: string | null;
+    /** 'admin' unlocks the admin dashboard; null while loading / as a guest. */
+    role: "user" | "admin" | null;
   };
   sync: { status: SyncStatus; error: string | null; lastSyncedAt: number };
   signOut: () => Promise<void>;
@@ -107,6 +109,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"user" | "admin" | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -148,6 +151,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       setSyncStatus("idle");
       setUserId(null);
       setUserEmail(null);
+      setUserRole(null);
     }
 
     async function enterUserMode(id: string, email: string) {
@@ -169,6 +173,15 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       const localSettings = (cached ? normalize(cached, email) : null)?.settings ?? settingsRef.current;
 
       if (result.status === "ok") {
+        setUserRole(result.role);
+
+        // An admin marked this account disabled — end the session here.
+        if (result.accountStatus === "disabled") {
+          await supabase.auth.signOut();
+          router.replace("/login?error=disabled");
+          return;
+        }
+
         commit(id, { ...result.state, settings: localSettings });
         setSyncStatus("synced");
         setSyncError(null);
@@ -178,6 +191,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       }
 
       if (result.status === "empty") {
+        setUserRole("user");
         // Signed up but the bootstrap rows are missing — create and push them.
         const fresh = createFreshState({ email }, Date.now());
         const next = { ...fresh, settings: localSettings };
@@ -228,7 +242,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       disposed = true;
       subscription?.subscription.unsubscribe();
     };
-  }, [commit]);
+  }, [commit, router]);
 
   // -------------------------------------------------------------------------
   // Persist: localStorage on every change, Postgres debounced while signed in.
@@ -422,8 +436,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   }, [userId, commit, accountName, accountEmail, accountTier, accountNumber]);
 
   const auth = useMemo(
-    () => ({ configured, status: authStatus, userId, email: userEmail }),
-    [configured, authStatus, userId, userEmail],
+    () => ({ configured, status: authStatus, userId, email: userEmail, role: userRole }),
+    [configured, authStatus, userId, userEmail, userRole],
   );
 
   const sync = useMemo(

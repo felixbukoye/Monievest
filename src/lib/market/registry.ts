@@ -45,3 +45,26 @@ export function dynamicSymbols(): string[] {
 export function registrySize(): number {
   return registry.size;
 }
+
+/**
+ * ---------------------------------------------------------------------------
+ * Admin universe overrides
+ * ---------------------------------------------------------------------------
+ * Admins can disable built-in catalog stocks from the admin dashboard. The
+ * disabled set is published here (by `universe.ts` after `/api/stocks`
+ * resolves) so `allInstruments()` can hide those symbols from Markets,
+ * search and the order ticket without import cycles.
+ */
+const disabledSymbols = new Set<string>();
+
+export function setDisabledSymbols(symbols: string[]): void {
+  disabledSymbols.clear();
+  for (const symbol of symbols) {
+    const key = symbol?.toUpperCase();
+    if (key) disabledSymbols.add(key);
+  }
+}
+
+export function isSymbolDisabled(symbol: string | undefined | null): boolean {
+  return disabledSymbols.has(symbol?.toUpperCase() ?? "");
+}

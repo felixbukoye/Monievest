@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 import { CATALOG } from "./catalog";
-import { buildQuotes, tickQuotes } from "./engine";
+import { buildQuotes, quoteForInstrument, tickQuotes } from "./engine";
 import { fetchLiveQuotes, mergeLiveQuote, type LiveDiagnostics } from "./live";
 import { dynamicSymbols } from "./registry";
-import type { Quote } from "./types";
+import type { Instrument, Quote } from "./types";
 
 /**
  * ---------------------------------------------------------------------------
@@ -297,6 +297,39 @@ export const marketStore = {
   /** Symbols that matter most (open positions + watchlist) — polled first. */
   setPrioritySymbols(symbols: string[]) {
     baseSymbols = symbols.map((symbol) => symbol.toUpperCase());
+  },
+
+  /**
+   * Applies the admin-curated universe (`/api/stocks`): adds simulated quotes
+   * for stocks an admin created and pulls disabled stocks off the board.
+   * Called once on boot from MarketProvider.
+   */
+  applyUniverse(payload: { add: Instrument[]; remove: string[] }) {
+    if (typeof window === "undefined") return;
+    boot();
+
+    const now = Date.now();
+    const quotes = { ...snapshot.quotes };
+    let changed = false;
+
+    for (const symbol of payload.remove) {
+      const key = symbol?.toUpperCase();
+      if (key && quotes[key]) {
+        delete quotes[key];
+        changed = true;
+      }
+    }
+
+    for (const instrument of payload.add) {
+      if (!quotes[instrument.symbol]) {
+        quotes[instrument.symbol] = quoteForInstrument(instrument, now);
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    snapshot = { ...snapshot, quotes, ready: true, lastTickAt: snapshot.lastTickAt || now };
+    emit();
   },
 
   /** Ad-hoc tracking, e.g. a symbol opened from live search. */

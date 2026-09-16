@@ -26,7 +26,14 @@ import {
 export type SyncResult = { ok: boolean; error?: string };
 
 export type LoadResult =
-  | { status: "ok"; state: PortfolioState }
+  | {
+      status: "ok";
+      state: PortfolioState;
+      /** The caller's role from `profiles` — drives the admin dashboard. */
+      role: "user" | "admin";
+      /** 'disabled' accounts are signed out instead of being hydrated. */
+      accountStatus: "active" | "disabled";
+    }
   /** Signed in, but no portfolio row yet (e.g. the bootstrap trigger hasn't run). */
   | { status: "empty" }
   | { status: "error"; error: string };
@@ -36,6 +43,8 @@ type ProfileRow = {
   tier: string | null;
   account_number: string | null;
   created_at: string | number | null;
+  role: string | null;
+  status: string | null;
 };
 
 type PortfolioRow = {
@@ -140,12 +149,19 @@ export async function loadPortfolio(
   userId: string,
   email: string,
 ): Promise<LoadResult> {
-  const [profile, portfolio, positions, orders, activity, watchlist] = await Promise.all([
+  const [profile, profileMeta, portfolio, positions, orders, activity, watchlist] = await Promise.all([
     client
       .from("profiles")
       .select("display_name,tier,account_number,created_at")
       .eq("id", userId)
-      .maybeSingle<ProfileRow>(),
+      .maybeSingle<Omit<ProfileRow, "role" | "status">>(),
+    // Separate query so a project without the admin migration (0002) still
+    // loads: missing columns only fail this call, not the whole portfolio.
+    client
+      .from("profiles")
+      .select("role,status")
+      .eq("id", userId)
+      .maybeSingle<Pick<ProfileRow, "role" | "status">>(),
     client
       .from("portfolios")
       .select("cash,realized_pnl,state_version")
@@ -237,6 +253,8 @@ export async function loadPortfolio(
       // Settings stay on-device by design (theme, table density, chart range).
       settings: { livePrices: true, autoFillLimits: true, compactTables: false, defaultRange: "1M" },
     },
+    role: profileMeta.data?.role === "admin" ? "admin" : "user",
+    accountStatus: profileMeta.data?.status === "disabled" ? "disabled" : "active",
   };
 }
 

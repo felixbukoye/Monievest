@@ -1,4 +1,4 @@
-import { dynamicInstruments, getDynamicInstrument } from "./registry";
+import { dynamicInstruments, getDynamicInstrument, isSymbolDisabled } from "./registry";
 import type { Instrument } from "./types";
 
 /**
@@ -1255,7 +1255,9 @@ export const SECTORS: Instrument["sector"][] = Array.from(
 /** Every tradable instrument: the curated catalog plus anything resolved live. */
 export function allInstruments(): Instrument[] {
   const dynamic = dynamicInstruments();
-  return dynamic.length === 0 ? CATALOG : [...CATALOG, ...dynamic];
+  const merged = dynamic.length === 0 ? CATALOG : [...CATALOG, ...dynamic];
+  // Admins can disable stocks from the dashboard; hide them everywhere.
+  return merged.filter((instrument) => !isSymbolDisabled(instrument.symbol));
 }
 
 export function getInstrument(symbol: string): Instrument | undefined {
