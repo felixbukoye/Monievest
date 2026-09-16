@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
+import type { ChromeMode } from "@/components/app/nav";
 import { TradeDialog } from "@/components/trade/trade-dialog";
 import { usePortfolio } from "@/lib/store/provider";
 import type { OrderSide } from "@/lib/store/types";
@@ -21,13 +22,35 @@ export function useTrade(): TradeContextValue {
   return context;
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const { state } = usePortfolio();
+/**
+ * The application shell.
+ *
+ * It renders one of two chromes:
+ *   • **user** — the investor app: order ticket, wallet balance, portfolio.
+ *   • **admin** — the admin console: administration sections only. No order
+ *     ticket is mounted, no wallet is shown, and the sidebar/hamburger carry
+ *     the admin menu.
+ *
+ * `initialRole` comes from the server layout so the correct chrome is in the
+ * first HTML instead of flashing the investor menu until the client session
+ * resolves.
+ */
+export function AppShell({
+  children,
+  initialRole = null,
+}: {
+  children: React.ReactNode;
+  initialRole?: "user" | "admin" | null;
+}) {
+  const { state, auth } = usePortfolio();
   const [trade, setTrade] = React.useState<{ symbol: string | null; side: OrderSide; open: boolean }>({
     symbol: null,
     side: "buy",
     open: false,
   });
+
+  const isAdmin = auth.status === "loading" ? initialRole === "admin" : auth.role === "admin";
+  const mode: ChromeMode = isAdmin ? "admin" : "user";
 
   const openTrade = React.useCallback((symbol?: string, side: OrderSide = "buy") => {
     setTrade({ symbol: symbol ?? null, side, open: true });
@@ -37,11 +60,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TradeContext.Provider value={value}>
-      <div className="flex min-h-dvh">
-        <Sidebar />
+      <div className="flex min-h-dvh" data-chrome={mode}>
+        <Sidebar mode={mode} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar onTrade={openTrade} />
+          <Topbar onTrade={openTrade} mode={mode} />
 
           <main
             className="min-w-0 flex-1 px-4 pt-2 pb-8 sm:px-6"
@@ -53,20 +76,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <footer className="px-6 pb-6 text-[11.5px] text-muted-foreground">
             <div className="mx-auto flex max-w-[1360px] flex-wrap items-center justify-between gap-2">
               <p>
-                <span className="font-semibold text-foreground">Monievest</span> is a demo — prices, fills and
-                balances are simulated locally in your browser.
+                <span className="font-semibold text-foreground">Monievest</span>{" "}
+                {isAdmin
+                  ? "admin console — platform management only. Trading and wallet features are turned off for admin accounts."
+                  : "is a demo — prices, fills and balances are simulated locally in your browser."}
               </p>
-              <p>Not investment advice · No real securities are traded</p>
+              <p>
+                {isAdmin
+                  ? "Every query is scoped by Postgres row level security"
+                  : "Not investment advice · No real securities are traded"}
+              </p>
             </div>
           </footer>
         </div>
 
-        <TradeDialog
-          symbol={trade.symbol}
-          open={trade.open}
-          initialSide={trade.side}
-          onOpenChange={(open) => setTrade((current) => ({ ...current, open }))}
-        />
+        {/* Admins do not trade, so the order ticket is never mounted for them. */}
+        {isAdmin ? null : (
+          <TradeDialog
+            symbol={trade.symbol}
+            open={trade.open}
+            initialSide={trade.side}
+            onOpenChange={(open) => setTrade((current) => ({ ...current, open }))}
+          />
+        )}
       </div>
     </TradeContext.Provider>
   );

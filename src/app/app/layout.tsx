@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app/app-shell";
-import { enforceAccountStatus } from "@/lib/supabase/server";
+import { enforceAccountStatus, getCurrentProfile } from "@/lib/supabase/server";
 import type { ReactNode } from "react";
 
 /**
@@ -13,5 +13,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Kicks out accounts an admin has disabled (no-op for guests / local mode).
   await enforceAccountStatus();
 
-  return <AppShell>{children}</AppShell>;
+  // Read the role on the server so an admin gets the admin console chrome in
+  // the very first HTML — no flash of the investor menu while the client
+  // session is still being read.
+  const profile = await getCurrentProfile();
+
+  return <AppShell initialRole={profile?.role ?? null}>{children}</AppShell>;
 }

@@ -8,6 +8,7 @@ import { fetchLiveConfig, SIMULATED_CONFIG, type LiveConfig, type LiveDiagnostic
 import { marketStore, useMarketSnapshot } from "@/lib/market/store";
 import type { Quote } from "@/lib/market/types";
 import { applyUniversePayload, fetchUniverse } from "@/lib/market/universe";
+import { useNotify } from "@/lib/notifications/use-notify";
 import { usePortfolio } from "@/lib/store/provider";
 
 const SESSION_PLACEHOLDER = { open: false, label: "Connecting…", phase: "closed" } as const;
@@ -44,6 +45,7 @@ const MarketContext = createContext<MarketContextValue | null>(null);
 
 export function MarketProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = usePortfolio();
+  const notify = useNotify();
   const snapshot = useMarketSnapshot();
   const { quotes, ready, lastTickAt, source, provider, liveUpdatedAt, liveError, liveDiagnostics } = snapshot;
 
@@ -114,9 +116,15 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       const hit = order.side === "buy" ? quote.price <= order.limitPrice : quote.price >= order.limitPrice;
       if (hit) {
         dispatch({ type: "fill-order", payload: { id: order.id, price: order.limitPrice } });
+        notify({
+          kind: "success",
+          title: `Limit order filled · ${order.symbol}`,
+          body: `${order.side === "buy" ? "Bought" : "Sold"} ${order.qty} ${order.symbol} at $${order.limitPrice.toFixed(2)}.`,
+          href: "/app/activity",
+        });
       }
     }
-  }, [quotes, ready, autoFill, orders, dispatch]);
+  }, [quotes, ready, autoFill, orders, dispatch, notify]);
 
   const indices = useMemo(() => (ready ? buildIndices(quotes) : []), [quotes, ready]);
 
